@@ -1,1 +1,76 @@
+# .coderabbit.yaml - Configuração do CodeRabbit para Jogo HTML/JS
 
+language: "pt-BR"
+
+tone_instructions: >
+  Seja direto e prático. Use linguagem informal brasileira.
+  Foque em melhorias de performance, jogabilidade e código limpo.
+  Dê exemplos de código quando sugerir mudanças.
+
+early_access: true
+
+reviews:
+  profile: "assertive"
+  request_changes_workflow: true
+  high_level_summary: true
+  high_level_summary_placeholder: "@coderabbitai summary"
+  auto_title_placeholder: "[CodeRabbit]"
+  poem: false
+  review_status: true
+  collapse_walkthrough: false
+  sequence_diagrams: true
+  changed_files_summary: true
+  
+  path_instructions:
+    - path: "**/*.html"
+      instructions: >
+        Analise a estrutura HTML do jogo:
+        - Semântica correta dos elementos
+        - Otimização do Canvas se usado
+        - Acessibilidade básica
+        - Meta tags para performance
+        
+    - path: "**/*.js"
+      instructions: >
+        Foque em aspectos de desenvolvimento de jogos:
+        - Game loop otimizado (requestAnimationFrame)
+        - Gerenciamento de memória (evitar memory leaks)
+        - Performance de renderização
+        - Detecção de colisão eficiente
+        - Organização do código (classes, módulos)
+        - Input handling responsivo
+        - Estado do jogo bem estruturado
+        - Evitar criar objetos no loop principal
+        
+    - path: "**/*.css"
+      instructions: >
+        Verifique:
+        - Performance de animações (usar transform/opacity)
+        - Evitar repaints desnecessários
+        - Responsividade para diferentes telas
+        - GPU acceleration quando apropriado
+
+  auto_review:
+    enabled: true
+    auto_incremental_review: true
+    ignore_title_keywords:
+      - "WIP"
+      - "DO NOT MERGE"
+      - "wip"
+    drafts: false
+    base_branches:
+      - "main"
+      - "master"
+      - "develop"
+
+chat:
+  auto_reply: true
+
+knowledge_base:
+  opt_out: false
+  learnings:
+    scope: "auto"
+  issues:
+    scope: "auto"
+  pull_requests:
+    scope: "auto"
