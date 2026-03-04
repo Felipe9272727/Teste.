@@ -310,7 +310,8 @@
             const input = ctx.createGain();
             input.connect(convolver); convolver.connect(wetGain); input.connect(dryGain);
             wetGain.connect(destination); dryGain.connect(destination);
-            return input;
+            // Return ALL nodes so they can be properly disconnected on cleanup
+            return { input, convolver, wetGain, dryGain };
         };
 
         const createBrushBuffer = (ctx) => {
@@ -429,9 +430,9 @@
             const compressor = ctx.createDynamicsCompressor(); compressor.threshold.value = -12; compressor.ratio.value = 4;
             const makeupGain = ctx.createGain(); makeupGain.gain.value = 1.5; 
             compressor.connect(makeupGain); makeupGain.connect(ctx.destination);
-            const reverbInput = setupReverb(ctx, compressor);
-            masterGainRef.current = reverbInput;
-            const lobbyGain = ctx.createGain(); lobbyGain.gain.value = 1.0; lobbyGain.connect(reverbInput); lobbyGainRef.current = lobbyGain;
+            const reverbNodes = setupReverb(ctx, compressor);
+            masterGainRef.current = reverbNodes.input;
+            const lobbyGain = ctx.createGain(); lobbyGain.gain.value = 1.0; lobbyGain.connect(reverbNodes.input); lobbyGainRef.current = lobbyGain;
 
             let isMounted = true;
             fetch('https://raw.githubusercontent.com/Felipe9272727/M-sica-pro-meu-jogo/main/Lobby%20Time(MP3_160K).mp3')
@@ -445,7 +446,10 @@
                 isMounted = false;
                 if (schedulerTimerRef.current) clearInterval(schedulerTimerRef.current);
                 if (sourceRef.current) { try { sourceRef.current.stop(); } catch(e) {} sourceRef.current.disconnect(); }
-                lobbyGain.disconnect(); reverbInput.disconnect(); compressor.disconnect(); makeupGain.disconnect();
+                lobbyGain.disconnect();
+                reverbNodes.input.disconnect(); reverbNodes.convolver.disconnect();
+                reverbNodes.wetGain.disconnect(); reverbNodes.dryGain.disconnect();
+                compressor.disconnect(); makeupGain.disconnect();
                 masterGainRef.current = null; lobbyGainRef.current = null;
             };
         }, [audioContext, scheduler]);
@@ -958,6 +962,9 @@
                     if (idleAction) { idleAction.reset().fadeIn(0.5).play(); walkAction?.fadeOut(0.5); }
                 } else {
                     direction.normalize(); const moveSpeed = 2.0 * delta; pos.addScaledVector(direction, moveSpeed);
+                    // Bug #8 fix: Clamp NPC within lobby bounds (prevent walking through walls/into elevator)
+                    pos.x = Math.max(-9, Math.min(9, pos.x));
+                    pos.z = Math.max(-9, Math.min(9, pos.z));
                     const targetRotation = Math.atan2(direction.x, direction.z); const currentRotation = group.current.rotation.y;
                     let diff = targetRotation - currentRotation; while (diff > Math.PI) diff -= Math.PI * 2; while (diff < -Math.PI) diff += Math.PI * 2;
                     group.current.rotation.y += diff * 5 * delta;
@@ -1072,10 +1079,11 @@
         }, [scene]);
         useFrame((state, delta) => {
             if (hipsRef.current) { hipsRef.current.position.x = 0; hipsRef.current.position.z = 0; }
-            const targetOpacity = visible ? 1.0 : 0.0; currentOpacity.current = THREE.MathUtils.lerp(currentOpacity.current, targetOpacity, 8 * delta);
-            if (Math.abs(currentOpacity.current - targetOpacity) > 0.001) {
-                for (const mesh of meshesRef.current) { if (mesh.material) { mesh.material.opacity = currentOpacity.current; mesh.visible = currentOpacity.current > 0.01; } }
-            }
+            const targetOpacity = visible ? 1.0 : 0.0;
+            // Early return if already at target — skip lerp AND mesh iteration entirely
+            if (Math.abs(currentOpacity.current - targetOpacity) < 0.001) return;
+            currentOpacity.current = THREE.MathUtils.lerp(currentOpacity.current, targetOpacity, 8 * delta);
+            for (const mesh of meshesRef.current) { if (mesh.material) { mesh.material.opacity = currentOpacity.current; mesh.visible = currentOpacity.current > 0.01; } }
         });
         useEffect(() => {
            const action = actions[animation === 'Walking' ? 'Walking' : 'Idle']; const other = actions[animation === 'Walking' ? 'Idle' : 'Walking'];
@@ -1139,40 +1147,35 @@
           let validX = Math.max(-limit, Math.min(limit, nextX));
           let validZ = Math.max(-limit, Math.min(limit, nextZ));
 
+          // Inflated bounds for collision detection
           const bounds = {
               minX: HOUSE_MIN_X - wallBuffer, maxX: HOUSE_MAX_X + wallBuffer,
               minZ: HOUSE_MIN_Z - wallBuffer, maxZ: HOUSE_MAX_Z + wallBuffer
           };
 
           if (validX >= bounds.minX && validX <= bounds.maxX && validZ >= bounds.minZ && validZ <= bounds.maxZ) {
-              // Use current position to determine which side the player came from
-              const wasOutsideLeft  = currentX < bounds.minX;
-              const wasOutsideRight = currentX > bounds.maxX;
-              const wasOutsideFront = currentZ < bounds.minZ;
-              const wasOutsideBack  = currentZ > bounds.maxZ;
+              // Use REAL wall positions (not inflated) to determine origin side
+              // This prevents the "one frame inside bounds = trapped" bug
+              const wasOutsideLeft  = currentX <= HOUSE_MIN_X;
+              const wasOutsideRight = currentX >= HOUSE_MAX_X;
+              const wasOutsideFront = currentZ <= HOUSE_MIN_Z;
+              const wasOutsideBack  = currentZ >= HOUSE_MAX_Z;
 
               if (wasOutsideLeft) {
-                  validX = bounds.minX;
+                  validX = HOUSE_MIN_X - wallBuffer;
               } else if (wasOutsideRight) {
-                  validX = bounds.maxX;
+                  validX = HOUSE_MAX_X + wallBuffer;
               } else if (wasOutsideFront) {
                   const inDoorGap = Math.abs(validX - HOUSE_DOOR_X) < 0.7;
                   if (!(houseDoorOpen && inDoorGap)) {
-                      validZ = bounds.minZ;
+                      validZ = HOUSE_MIN_Z - wallBuffer;
                   }
+                  // If door open and in gap, let player pass through
               } else if (wasOutsideBack) {
-                  validZ = bounds.maxZ;
+                  validZ = HOUSE_MAX_Z + wallBuffer;
               } else {
-                  // Already inside (spawn or previous bug) — push to nearest face
-                  const distToLeft  = Math.abs(currentX - bounds.minX);
-                  const distToRight = Math.abs(currentX - bounds.maxX);
-                  const distToFront = Math.abs(currentZ - bounds.minZ);
-                  const distToBack  = Math.abs(currentZ - bounds.maxZ);
-                  const minDist = Math.min(distToLeft, distToRight, distToFront, distToBack);
-                  if (minDist === distToLeft) validX = bounds.minX;
-                  else if (minDist === distToRight) validX = bounds.maxX;
-                  else if (minDist === distToFront) validZ = bounds.minZ;
-                  else validZ = bounds.maxZ;
+                  // Player is genuinely inside the house — push toward front door
+                  validZ = HOUSE_MIN_Z - wallBuffer;
               }
           }
 
@@ -1209,6 +1212,8 @@
 
         useFrame((state, delta) => {
           if (!active) return;
+          // Bug #3 fix: Cap delta to prevent teleporting when switching tabs
+          const clampedDelta = Math.min(delta, 0.05);
           const isFirstPerson = zoomLevel < 0.5;
           if (sharedPositionRef) sharedPositionRef.current.copy(position.current);
 
@@ -1219,15 +1224,16 @@
               const dirToPlayer = _dirToPlayer.current.subVectors(playerPos, npcPos).normalize(); if (dirToPlayer.lengthSq() < 0.001) dirToPlayer.set(0, 0, 1);
               const targetCamPos = _targetCamPos.current.copy(npcPos).addScaledVector(dirToPlayer, 2.2).add(_tempVec.current.set(0, 1.75, 0)); 
               const targetLookAt = _targetLookAt.current.copy(npcPos).add(_tempVec2.current.set(0, 1.35, 0));
-              camera.position.lerp(targetCamPos, 5 * delta);
+              camera.position.lerp(targetCamPos, 5 * clampedDelta);
               if (cameraLookAtRef.current.distanceTo(targetLookAt) > 10) { cameraLookAtRef.current.copy(playerPos).add(_tempVec.current.set(0, 1.6, 0)); }
-              cameraLookAtRef.current.lerp(targetLookAt, 5 * delta);
+              cameraLookAtRef.current.lerp(targetLookAt, 5 * clampedDelta);
               camera.lookAt(cameraLookAtRef.current);
-              camera.fov = THREE.MathUtils.lerp(camera.fov, 40, 5 * delta); camera.updateProjectionMatrix();
+              const targetDialogueFov = 40;
+              if (Math.abs(camera.fov - targetDialogueFov) > 0.1) { camera.fov = THREE.MathUtils.lerp(camera.fov, targetDialogueFov, 5 * clampedDelta); camera.updateProjectionMatrix(); }
           } else {
               const baseSens = 0.003; const sensMultiplier = isFirstPerson ? 1.5 : 1.0; const sensitivity = baseSens * sensMultiplier;
               if (isDesktop) {
-                 if (lookInput.current.x !== 0 || lookInput.current.y !== 0) { cameraAngles.current.theta -= lookInput.current.x * sensitivity * 500 * delta; cameraAngles.current.phi += lookInput.current.y * sensitivity * 500 * delta; lookInput.current.x = 0; lookInput.current.y = 0; }
+                 if (lookInput.current.x !== 0 || lookInput.current.y !== 0) { cameraAngles.current.theta -= lookInput.current.x * sensitivity * 500 * clampedDelta; cameraAngles.current.phi += lookInput.current.y * sensitivity * 500 * clampedDelta; lookInput.current.x = 0; lookInput.current.y = 0; }
               } else {
                  if (lookInput.current.x !== 0 || lookInput.current.y !== 0) { cameraAngles.current.theta -= lookInput.current.x * sensMultiplier; cameraAngles.current.phi += lookInput.current.y * sensMultiplier; lookInput.current.x = 0; lookInput.current.y = 0; }
               }
@@ -1237,7 +1243,7 @@
                   isMoving = true;
                   const camDir = _camDir.current.set(Math.sin(cameraAngles.current.theta), 0, Math.cos(cameraAngles.current.theta));
                   const rightDir = _rightDir.current.set(Math.sin(cameraAngles.current.theta - Math.PI/2), 0, Math.cos(cameraAngles.current.theta - Math.PI/2));
-                  const moveVec = _moveVec.current.set(0, 0, 0).addScaledVector(camDir, -forwardInput).addScaledVector(rightDir, -strafeInput).normalize().multiplyScalar(SPEED * delta);
+                  const moveVec = _moveVec.current.set(0, 0, 0).addScaledVector(camDir, -forwardInput).addScaledVector(rightDir, -strafeInput).normalize().multiplyScalar(SPEED * clampedDelta);
                   const currentPos = _currentPos.current.copy(position.current); const nextPos = _nextPos.current.copy(currentPos).add(moveVec);
                   let validX = nextPos.x; let validZ = nextPos.z; const wallBuffer = PLAYER_RADIUS; const doorHalfWidth = (DOOR_WIDTH / 2) - 0.2; const inElevatorZone = nextPos.z < ELEVATOR_Z_START;
                   if (!inElevatorZone) {
@@ -1253,26 +1259,32 @@
                   validZ = resolveElevatorCrossing(currentPos.z, nextPos.x, validZ, doorsClosed, doorHalfWidth, wallBuffer);
 
                   position.current.x = validX; position.current.z = validZ; position.current.y = 0; 
-                  if (isFirstPerson) { charRotation.current.y = cameraAngles.current.theta + Math.PI; } else { const angle = Math.atan2(moveVec.x, moveVec.z); let targetRot = angle; const currentRot = charRotation.current.y; let diff = targetRot - currentRot; while (diff > Math.PI) diff -= Math.PI * 2; while (diff < -Math.PI) diff += Math.PI * 2; charRotation.current.y += diff * 10 * delta; }
-                  if (currentLevel === 1) { const dx = position.current.x - HOUSE_DOOR_X; const dz = position.current.z - HOUSE_DOOR_Z; const dist = Math.sqrt(dx*dx + dz*dz); if (dist < 3.0) onInteractionUpdate(true); else onInteractionUpdate(false); } else { onInteractionUpdate(false); }
-                  if (currentLevel === 0 && npcPositionRef && npcPositionRef.current) { const dist = position.current.distanceTo(npcPositionRef.current); onNpcInteractionUpdate(dist < 4.0); } else { onNpcInteractionUpdate(false); }
-                  if (position.current.z < ELEVATOR_Z_START - 0.2 && !hasTriggeredElevator.current) { if (currentLevel === 0) { hasTriggeredElevator.current = true; onEnterElevator(); } }
+                  if (isFirstPerson) { charRotation.current.y = cameraAngles.current.theta + Math.PI; } else { const angle = Math.atan2(moveVec.x, moveVec.z); let targetRot = angle; const currentRot = charRotation.current.y; let diff = targetRot - currentRot; while (diff > Math.PI) diff -= Math.PI * 2; while (diff < -Math.PI) diff += Math.PI * 2; charRotation.current.y += diff * 10 * clampedDelta; }
               }
+
+              // Bug #5 fix: Interaction checks run ALWAYS, not just when moving
+              if (currentLevel === 1) { const dx = position.current.x - HOUSE_DOOR_X; const dz = position.current.z - HOUSE_DOOR_Z; const dist = Math.sqrt(dx*dx + dz*dz); if (dist < 3.0) onInteractionUpdate(true); else onInteractionUpdate(false); } else { onInteractionUpdate(false); }
+              if (currentLevel === 0 && npcPositionRef && npcPositionRef.current) { const dist = position.current.distanceTo(npcPositionRef.current); onNpcInteractionUpdate(dist < 4.0); } else { onNpcInteractionUpdate(false); }
+              // Bug #4 fix: Allow elevator entry from ANY level (removed currentLevel === 0 check)
+              if (position.current.z < ELEVATOR_Z_START - 0.2 && !hasTriggeredElevator.current) { hasTriggeredElevator.current = true; onEnterElevator(); }
+
               const newAnimState = isMoving ? 'Walking' : 'Idle';
               if (newAnimState !== currentAnimStateRef.current) { currentAnimStateRef.current = newAnimState; setAnimState(newAnimState); }
               if (avatarGroupRef.current) { avatarGroupRef.current.position.copy(position.current); avatarGroupRef.current.rotation.copy(charRotation.current); }
               const lookTargetY = position.current.y + HEAD_HEIGHT;
               const normalTargetLookAt = _tempVec3.current.set(position.current.x, lookTargetY, position.current.z);
-              cameraLookAtRef.current.lerp(normalTargetLookAt, 10 * delta); 
+              cameraLookAtRef.current.lerp(normalTargetLookAt, 10 * clampedDelta); 
               if (isFirstPerson) {
                   const p = position.current; camera.position.set(p.x, lookTargetY, p.z);
                   const lookDist = 5; const tx = p.x - Math.sin(cameraAngles.current.theta) * lookDist * Math.cos(cameraAngles.current.phi); const tz = p.z - Math.cos(cameraAngles.current.theta) * lookDist * Math.cos(cameraAngles.current.phi); const ty = lookTargetY - Math.sin(cameraAngles.current.phi) * lookDist;
-                  camera.lookAt(tx, ty, tz); camera.fov = 90; camera.updateProjectionMatrix();
+                  camera.lookAt(tx, ty, tz);
+                  // Bug #6 fix: Only update projection matrix if FOV actually changed
+                  if (camera.fov !== 90) { camera.fov = 90; camera.updateProjectionMatrix(); }
               } else {
                   const aspect = size.width / size.height; const isPortrait = aspect < 1.0; const targetFov = isPortrait ? 90 : 75;
-                  if (Math.abs(camera.fov - targetFov) > 0.1) { camera.fov = THREE.MathUtils.lerp(camera.fov, targetFov, 5 * delta); camera.updateProjectionMatrix(); }
+                  if (Math.abs(camera.fov - targetFov) > 0.1) { camera.fov = THREE.MathUtils.lerp(camera.fov, targetFov, 5 * clampedDelta); camera.updateProjectionMatrix(); }
                   const cx = position.current.x + Math.sin(cameraAngles.current.theta) * zoomLevel * Math.cos(cameraAngles.current.phi); const cz = position.current.z + Math.cos(cameraAngles.current.theta) * zoomLevel * Math.cos(cameraAngles.current.phi); const cy = lookTargetY + Math.sin(cameraAngles.current.phi) * zoomLevel; const safeCy = Math.max(cy, 0.2);
-                  camera.position.lerp(_camPos.current.set(cx, safeCy, cz), 10 * delta); camera.lookAt(position.current.x, lookTargetY, position.current.z);
+                  camera.position.lerp(_camPos.current.set(cx, safeCy, cz), 10 * clampedDelta); camera.lookAt(position.current.x, lookTargetY, position.current.z);
               }
           }
         });
@@ -1639,7 +1651,7 @@
         const [houseDoorOpen, setHouseDoorOpen] = useState(false); const [canInteractDoor, setCanInteractDoor] = useState(false);
         const npcPositionRef = useRef(new Vector3(5, 0, 5)); const [canInteractNPC, setCanInteractNPC] = useState(false); const [dialogueOpen, setDialogueOpen] = useState(false); const [dialogueNode, setDialogueNode] = useState('start');
         
-        const handlePlayerEnterElevator = () => { if (elevatorTimer === null && !doorsClosed && currentLevel === 0) { dispatchElev({ type: 'ENTER' }); } };
+        const handlePlayerEnterElevator = () => { if (elevatorTimer === null && !doorsClosed) { dispatchElev({ type: 'ENTER' }); } };
         const handleInteractionUpdate = useCallback((canInteract) => { setCanInteractDoor(prev => { if (prev !== canInteract) return canInteract; return prev; }); }, []);
         const handleNpcInteractionUpdate = useCallback((canInteract) => { setCanInteractNPC(prev => { if (prev !== canInteract) return canInteract; return prev; }); }, []);
         const handleOpenDoor = () => { if (navigator.vibrate) navigator.vibrate(50); setHouseDoorOpen(true); setCanInteractDoor(false); };
@@ -1675,7 +1687,11 @@
               timerId = setTimeout(() => { dispatchElev({ type: 'TICK' }); }, 1000);
               if (doorsClosed) {
                   if (elevatorTimer === 19) { dispatchElev({ type: 'SET_OVERLAY', value: 1 }); }
-                  if (elevatorTimer === 18) { if (currentLevel === 0) { dispatchElev({ type: 'CHANGE_LEVEL', level: 1 }); } }
+                  if (elevatorTimer === 18) {
+                      // Toggle between levels
+                      const nextLevel = currentLevel === 0 ? 1 : 0;
+                      dispatchElev({ type: 'CHANGE_LEVEL', level: nextLevel });
+                  }
                   if (elevatorTimer === 17) { dispatchElev({ type: 'SET_OVERLAY', value: 0 }); }
               }
           } else if (elevatorTimer === 0) {
