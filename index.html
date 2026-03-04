@@ -977,7 +977,7 @@
         );
       };
 
-      const LobbyEnvironment = React.memo(({ npcPositionRef, isPaused, playerPositionRef }) => {
+      const LobbyEnvironment = React.memo(({ npcPositionRef, isPaused, playerPositionRef, currentFloor = 1 }) => {
           const W = 20; const L = 20; const H = 4.5; const WH = 1.2;
           return (
               <group>
@@ -999,7 +999,7 @@
                      <Shop position={[0, 0, 0]} /> 
                   </group>
                   <ElevatorFacade z={-L/2} width={W} />
-                  <Door x={-W/2 + 0.35} z={-5} rot={Math.PI/2} /> <Door x={-W/2 + 0.35} z={5} rot={Math.PI/2} /> <Door x={W/2 - 0.35} z={-5} rot={-Math.PI/2} /> <WallPanel x={-W/2 + 0.3} z={0} rot={Math.PI/2} />
+                  <Door x={-W/2 + 0.35} z={-5} rot={Math.PI/2} /> <Door x={-W/2 + 0.35} z={5} rot={Math.PI/2} /> <Door x={W/2 - 0.35} z={-5} rot={-Math.PI/2} /> <WallPanel x={-W/2 + 0.3} z={0} rot={Math.PI/2} floor={currentFloor} />
                   <CeilingLight x={-5} z={-5} /> <CeilingLight x={-5} z={0} /> <CeilingLight x={-5} z={5} /> <CeilingLight x={5} z={-5} /> <CeilingLight x={5} z={0} /> <CeilingLight x={5} z={5} />
                   <LobbyNPC positionRef={npcPositionRef} isPaused={isPaused} playerPositionRef={playerPositionRef} />
               </group>
@@ -1029,7 +1029,7 @@
       const World = ({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef }) => {
           return (
               <>
-                  {level === 0 && <LobbyEnvironment npcPositionRef={npcPositionRef} isPaused={isPaused} playerPositionRef={playerPositionRef} />}
+                  {level === 0 && <LobbyEnvironment npcPositionRef={npcPositionRef} isPaused={isPaused} playerPositionRef={playerPositionRef} currentFloor={level + 1} />}
                   {level === 1 && <FlatMapEnvironment houseDoorOpen={houseDoorOpen} />}
                   <ElevatorInterior timer={timer} doorsClosed={doorsClosed} level={level} />
               </>
@@ -1069,6 +1069,77 @@
 
       const SPEED = 4.0; const PLAYER_RADIUS = 0.5; const ROOM_WIDTH = 20; const ROOM_LENGTH = 20; const ELEVATOR_WIDTH = 6.5; const ELEVATOR_DEPTH = 6.0; const ELEVATOR_Z_START = -10.0; const DOOR_WIDTH = 3.0; const LEVEL1_SIZE = 50; const LEVEL1_HALF = LEVEL1_SIZE / 2;
       const HOUSE_Z = 10; const HOUSE_HALF_W = 4; const HOUSE_HALF_D = 4; const HOUSE_MIN_X = -HOUSE_HALF_W; const HOUSE_MAX_X = HOUSE_HALF_W; const HOUSE_MIN_Z = HOUSE_Z - HOUSE_HALF_D; const HOUSE_MAX_Z = HOUSE_Z + HOUSE_HALF_D; const HOUSE_DOOR_Z = 6; const HOUSE_DOOR_X = 0;
+      const TOUCH_LOOK_SENSITIVITY = 0.006;
+
+      // --- COLLISION HELPERS ---
+      function resolveElevatorCrossing(currentPosZ, nextPosX, nextPosZ, doorsClosed, doorHalfWidth, wallBuffer) {
+          const isCrossing = (currentPosZ >= ELEVATOR_Z_START && nextPosZ < ELEVATOR_Z_START) || (currentPosZ < ELEVATOR_Z_START && nextPosZ >= ELEVATOR_Z_START);
+          
+          if (isCrossing) {
+              if (doorsClosed) {
+                  return currentPosZ >= ELEVATOR_Z_START
+                      ? Math.max(currentPosZ, ELEVATOR_Z_START + 0.1)
+                      : Math.min(currentPosZ, ELEVATOR_Z_START - 0.1);
+              }
+              if (Math.abs(nextPosX) > doorHalfWidth) {
+                  return currentPosZ >= ELEVATOR_Z_START
+                      ? Math.max(currentPosZ, ELEVATOR_Z_START + 0.1)
+                      : Math.min(currentPosZ, ELEVATOR_Z_START - 0.1);
+              }
+              return nextPosZ;
+          }
+          
+          // Near the threshold but not crossing
+          if (Math.abs(nextPosZ - ELEVATOR_Z_START) < wallBuffer && Math.abs(nextPosX) > doorHalfWidth) {
+              return currentPosZ >= ELEVATOR_Z_START
+                  ? Math.max(nextPosZ, ELEVATOR_Z_START + wallBuffer)
+                  : Math.min(nextPosZ, ELEVATOR_Z_START - wallBuffer);
+          }
+          
+          return nextPosZ;
+      }
+
+      function applyLobbyCollision(nextX, nextZ, wallBuffer) {
+          const maxX = (ROOM_WIDTH / 2) - wallBuffer;
+          return {
+              x: Math.max(-maxX, Math.min(maxX, nextX)),
+              z: Math.min((ROOM_LENGTH / 2) - wallBuffer, nextZ)
+          };
+      }
+
+      function applyOutdoorCollision(nextX, nextZ, currentX, currentZ, wallBuffer, houseDoorOpen) {
+          const limit = LEVEL1_HALF - wallBuffer;
+          let validX = Math.max(-limit, Math.min(limit, nextX));
+          let validZ = Math.min(limit, nextZ);
+
+          const bounds = {
+              minX: HOUSE_MIN_X - wallBuffer, maxX: HOUSE_MAX_X + wallBuffer,
+              minZ: HOUSE_MIN_Z - wallBuffer, maxZ: HOUSE_MAX_Z + wallBuffer
+          };
+
+          if (validX >= bounds.minX && validX <= bounds.maxX && validZ >= bounds.minZ && validZ <= bounds.maxZ) {
+              const distToLeft = Math.abs(validX - HOUSE_MIN_X);
+              const distToRight = Math.abs(validX - HOUSE_MAX_X);
+              const distToFront = Math.abs(validZ - HOUSE_MIN_Z);
+              const distToBack = Math.abs(validZ - HOUSE_MAX_Z);
+              const minDist = Math.min(distToLeft, distToRight, distToFront, distToBack);
+
+              if (minDist === distToLeft) {
+                  validX = currentX < HOUSE_MIN_X ? HOUSE_MIN_X - wallBuffer : HOUSE_MIN_X + wallBuffer;
+              } else if (minDist === distToRight) {
+                  validX = currentX > HOUSE_MAX_X ? HOUSE_MAX_X + wallBuffer : HOUSE_MAX_X - wallBuffer;
+              } else if (minDist === distToBack) {
+                  validZ = currentZ > HOUSE_MAX_Z ? HOUSE_MAX_Z + wallBuffer : HOUSE_MAX_Z - wallBuffer;
+              } else if (minDist === distToFront) {
+                  const inDoorGap = Math.abs(validX) < 0.7;
+                  if (!(houseDoorOpen && inDoorGap)) {
+                      validZ = currentZ < HOUSE_MIN_Z ? HOUSE_MIN_Z - wallBuffer : HOUSE_MIN_Z + wallBuffer;
+                  }
+              }
+          }
+
+          return { x: validX, z: validZ };
+      }
 
       const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueOpen, sharedPositionRef }) => {
         const { camera, size } = useThree();
@@ -1082,11 +1153,13 @@
         const _moveVec = useRef(new Vector3());
         const _tempVec = useRef(new Vector3());
         const _tempVec2 = useRef(new Vector3());
+        const _tempVec3 = useRef(new Vector3());
         const _dirToPlayer = useRef(new Vector3());
         const _targetCamPos = useRef(new Vector3());
         const _targetLookAt = useRef(new Vector3());
         const _currentPos = useRef(new Vector3());
         const _nextPos = useRef(new Vector3());
+        const _camPos = useRef(new Vector3());
 
         useEffect(() => { hasTriggeredElevator.current = false; }, [currentLevel]);
         useEffect(() => { cameraAngles.current.theta = Math.PI; cameraAngles.current.phi = 0.2; }, []);
@@ -1126,24 +1199,15 @@
                   let validX = nextPos.x; let validZ = nextPos.z; const wallBuffer = PLAYER_RADIUS; const doorHalfWidth = (DOOR_WIDTH / 2) - 0.2; const inElevatorZone = nextPos.z < ELEVATOR_Z_START;
                   if (!inElevatorZone) {
                       if (currentLevel === 0) {
-                          const maxX = (ROOM_WIDTH / 2) - wallBuffer; if (nextPos.x > maxX) validX = maxX; if (nextPos.x < -maxX) validX = -maxX;
-                          if (nextPos.z > (ROOM_LENGTH / 2) - wallBuffer) validZ = (ROOM_LENGTH / 2) - wallBuffer;
+                          const clamped = applyLobbyCollision(nextPos.x, nextPos.z, wallBuffer);
+                          validX = clamped.x; validZ = clamped.z;
                       } else {
-                          const limit = LEVEL1_HALF - wallBuffer; if (nextPos.x > limit) validX = limit; if (nextPos.x < -limit) validX = -limit; if (nextPos.z > limit) validZ = limit;
-                          const houseBoundsExpanded = { minX: HOUSE_MIN_X - wallBuffer, maxX: HOUSE_MAX_X + wallBuffer, minZ: HOUSE_MIN_Z - wallBuffer, maxZ: HOUSE_MAX_Z + wallBuffer };
-                          const isInside = (x, z, bounds) => { return x >= bounds.minX && x <= bounds.maxX && z >= bounds.minZ && z <= bounds.maxZ; };
-                          if (isInside(nextPos.x, nextPos.z, houseBoundsExpanded)) {
-                              const distToLeft = Math.abs(nextPos.x - HOUSE_MIN_X); const distToRight = Math.abs(nextPos.x - HOUSE_MAX_X); const distToFront = Math.abs(nextPos.z - HOUSE_MIN_Z); const distToBack = Math.abs(nextPos.z - HOUSE_MAX_Z); const min = Math.min(distToLeft, distToRight, distToFront, distToBack);
-                              if (min === distToLeft) { if (currentPos.x < HOUSE_MIN_X) validX = HOUSE_MIN_X - wallBuffer; else validX = HOUSE_MIN_X + wallBuffer; } 
-                              else if (min === distToRight) { if (currentPos.x > HOUSE_MAX_X) validX = HOUSE_MAX_X + wallBuffer; else validX = HOUSE_MAX_X - wallBuffer; } 
-                              else if (min === distToBack) { if (currentPos.z > HOUSE_MAX_Z) validZ = HOUSE_MAX_Z + wallBuffer; else validZ = HOUSE_MAX_Z - wallBuffer; } 
-                              else if (min === distToFront) { const inDoorGap = Math.abs(nextPos.x) < 0.7; if (houseDoorOpen && inDoorGap) { } else { if (currentPos.z < HOUSE_MIN_Z) validZ = HOUSE_MIN_Z - wallBuffer; else validZ = HOUSE_MIN_Z + wallBuffer; } }
-                          }
+                          const clamped = applyOutdoorCollision(nextPos.x, nextPos.z, currentPos.x, currentPos.z, wallBuffer, houseDoorOpen);
+                          validX = clamped.x; validZ = clamped.z;
                       }
-                  } else { const maxX = (ELEVATOR_WIDTH / 2) - wallBuffer; if (nextPos.x > maxX) validX = maxX; if (nextPos.x < -maxX) validX = -maxX; }
-                  const elevatorBackZ = ELEVATOR_Z_START - ELEVATOR_DEPTH + wallBuffer; if (nextPos.z < elevatorBackZ) validZ = elevatorBackZ;
-                  const isCrossing = (currentPos.z >= ELEVATOR_Z_START && nextPos.z < ELEVATOR_Z_START) || (currentPos.z < ELEVATOR_Z_START && nextPos.z >= ELEVATOR_Z_START);
-                  if (isCrossing) { if (doorsClosed) { if (currentPos.z >= ELEVATOR_Z_START) validZ = Math.max(currentPos.z, ELEVATOR_Z_START + 0.1); else validZ = Math.min(currentPos.z, ELEVATOR_Z_START - 0.1); } else { if (Math.abs(nextPos.x) > doorHalfWidth) { if (currentPos.z >= ELEVATOR_Z_START) validZ = Math.max(currentPos.z, ELEVATOR_Z_START + 0.1); else validZ = Math.min(currentPos.z, ELEVATOR_Z_START - 0.1); } } } else { if (Math.abs(nextPos.z - ELEVATOR_Z_START) < wallBuffer) { if (Math.abs(nextPos.x) > doorHalfWidth) { if (currentPos.z >= ELEVATOR_Z_START) validZ = Math.max(validZ, ELEVATOR_Z_START + wallBuffer); else validZ = Math.min(validZ, ELEVATOR_Z_START - wallBuffer); } } }
+                  } else { const maxX = (ELEVATOR_WIDTH / 2) - wallBuffer; validX = Math.max(-maxX, Math.min(maxX, nextPos.x)); }
+                  const elevatorBackZ = ELEVATOR_Z_START - ELEVATOR_DEPTH + wallBuffer; if (validZ < elevatorBackZ) validZ = elevatorBackZ;
+                  validZ = resolveElevatorCrossing(currentPos.z, nextPos.x, validZ, doorsClosed, doorHalfWidth, wallBuffer);
 
                   position.current.x = validX; position.current.z = validZ; position.current.y = 0; 
                   if (isFirstPerson) { charRotation.current.y = cameraAngles.current.theta + Math.PI; } else { const angle = Math.atan2(moveVec.x, moveVec.z); let targetRot = angle; const currentRot = charRotation.current.y; let diff = targetRot - currentRot; while (diff > Math.PI) diff -= Math.PI * 2; while (diff < -Math.PI) diff += Math.PI * 2; charRotation.current.y += diff * 10 * delta; }
@@ -1154,7 +1218,7 @@
               setAnimState(isMoving ? 'Walking' : 'Idle');
               if (avatarGroupRef.current) { avatarGroupRef.current.position.copy(position.current); avatarGroupRef.current.rotation.copy(charRotation.current); }
               const lookTargetY = position.current.y + HEAD_HEIGHT;
-              const normalTargetLookAt = _tempVec.current.set(position.current.x, lookTargetY, position.current.z);
+              const normalTargetLookAt = _tempVec3.current.set(position.current.x, lookTargetY, position.current.z);
               cameraLookAtRef.current.lerp(normalTargetLookAt, 10 * delta); 
               if (isFirstPerson) {
                   const p = position.current; camera.position.set(p.x, lookTargetY, p.z);
@@ -1164,7 +1228,7 @@
                   const aspect = size.width / size.height; const isPortrait = aspect < 1.0; const targetFov = isPortrait ? 90 : 75;
                   if (Math.abs(camera.fov - targetFov) > 0.1) { camera.fov = THREE.MathUtils.lerp(camera.fov, targetFov, 5 * delta); camera.updateProjectionMatrix(); }
                   const cx = position.current.x + Math.sin(cameraAngles.current.theta) * zoomLevel * Math.cos(cameraAngles.current.phi); const cz = position.current.z + Math.cos(cameraAngles.current.theta) * zoomLevel * Math.cos(cameraAngles.current.phi); const cy = lookTargetY + Math.sin(cameraAngles.current.phi) * zoomLevel; const safeCy = Math.max(cy, 0.2);
-                  camera.position.lerp(_tempVec2.current.set(cx, safeCy, cz), 10 * delta); camera.lookAt(position.current.x, lookTargetY, position.current.z);
+                  camera.position.lerp(_camPos.current.set(cx, safeCy, cz), 10 * delta); camera.lookAt(position.current.x, lookTargetY, position.current.z);
               }
           }
         });
@@ -1583,7 +1647,7 @@
                   setJoystickVisual(prev => ({ ...prev, currentX: normX, currentY: normY }));
                 } else if (pointer.type === 'look') {
                   const deltaX = clientX - pointer.startX; const deltaY = clientY - pointer.startY;
-                  const SENSITIVITY = 0.006; lookInput.current.x += deltaX * SENSITIVITY; lookInput.current.y += deltaY * SENSITIVITY;
+                  lookInput.current.x += deltaX * TOUCH_LOOK_SENSITIVITY; lookInput.current.y += deltaY * TOUCH_LOOK_SENSITIVITY;
                   pointer.startX = clientX; pointer.startY = clientY;
                 }
             }
