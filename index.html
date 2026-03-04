@@ -5,6 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>The Normal Elevator</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Preload critical resources -->
+    <link rel="preload" href="https://unpkg.com/@babel/standalone/babel.min.js" as="script" crossorigin>
+    <link rel="prefetch" href="https://raw.githubusercontent.com/Felipe9272727/Bancon...../main/Walking(1).glb">
+    <link rel="prefetch" href="https://raw.githubusercontent.com/Felipe9272727/BACON-PROJETO-FUNCIONALLLLL/main/Idle.glb">
+    <link rel="prefetch" href="https://raw.githubusercontent.com/Felipe9272727/Npc-test/main/npc%20walking.glb">
+    <link rel="prefetch" href="https://raw.githubusercontent.com/Felipe9272727/Npc-test/main/npc%20idle.glb">
     <style>
       body { margin: 0; padding: 0; overflow: hidden; background-color: #050505; touch-action: none; overscroll-behavior: none; }
       #root { width: 100vw; height: 100vh; }
@@ -166,7 +172,7 @@
     "three": "https://esm.sh/three@0.165.0",
     "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.16.8?deps=three@0.165.0,react@18.3.1,react-dom@18.3.1",
     "@react-three/drei": "https://esm.sh/@react-three/drei@9.108.0?deps=three@0.165.0,react@18.3.1,react-dom@18.3.1,@react-three/fiber@8.16.8",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/"
+    "react-dom/": "https://esm.sh/react-dom@18.3.1/"
   }
 }
 </script>
@@ -175,9 +181,8 @@
   </head>
   <body>
     <div id="root"></div>
-
     <script type="text/babel" data-type="module" data-presets="react,typescript">
-      import React, { useState, useEffect, useRef, useCallback, Suspense, useMemo } from 'react';
+      import React, { useState, useEffect, useRef, useCallback, Suspense, useMemo, useReducer } from 'react';
       import ReactDOM from 'react-dom/client';
       import { Canvas, useThree, useFrame, createPortal } from '@react-three/fiber';
       import { Html, Loader, Text, useTexture, useGLTF, useAnimations } from '@react-three/drei';
@@ -192,12 +197,14 @@
       // NPC Assets
       const NPC_WALK_URL = "https://raw.githubusercontent.com/Felipe9272727/Npc-test/main/npc%20walking.glb";
       const NPC_IDLE_URL = "https://raw.githubusercontent.com/Felipe9272727/Npc-test/main/npc%20idle.glb";
+      const DUSSEKAR_URL = "https://raw.githubusercontent.com/Felipe9272727/Vers-o-definitiva/main/blocky%20character%203d%20model.glb";
 
       // Preload assets
       useGLTF.preload(WALKING_URL);
       useGLTF.preload(IDLE_URL);
       useGLTF.preload(NPC_WALK_URL);
       useGLTF.preload(NPC_IDLE_URL);
+      useGLTF.preload(DUSSEKAR_URL);
 
       // --- DIALOGUE DATA (PORTUGUESE) ---
       
@@ -285,6 +292,7 @@
             elevator: { active: false, volume: 0.0, nextNoteTime: 0, beatCount: 0 }
         });
         const crossfadeRef = useRef({ active: false, startTime: 0, duration: 3.0, from: 'lobby', to: 'elevator' });
+        const brushBuffersRef = useRef({ accent: null, normal: null });
 
         const setupReverb = (ctx, destination) => {
             const convolver = ctx.createConvolver();
@@ -302,18 +310,29 @@
             const input = ctx.createGain();
             input.connect(convolver); convolver.connect(wetGain); input.connect(dryGain);
             wetGain.connect(destination); dryGain.connect(destination);
-            return input;
+            // Return ALL nodes so they can be properly disconnected on cleanup
+            return { input, convolver, wetGain, dryGain };
         };
 
-        const playBrush = (ctx, dest, time, accent, vol = 1.0) => {
+        const createBrushBuffer = (ctx) => {
             const bufferSize = ctx.sampleRate * 0.05;
             const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
             const data = buffer.getChannelData(0);
             for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1);
-            const noise = ctx.createBufferSource(); noise.buffer = buffer;
+            return buffer;
+        };
+
+        const playBrush = (ctx, dest, time, accent, vol = 1.0) => {
+            if (!brushBuffersRef.current.normal) {
+                brushBuffersRef.current.normal = createBrushBuffer(ctx);
+                brushBuffersRef.current.accent = createBrushBuffer(ctx);
+            }
+            const noise = ctx.createBufferSource();
+            noise.buffer = accent ? brushBuffersRef.current.accent : brushBuffersRef.current.normal;
             const filter = ctx.createBiquadFilter(); filter.type = 'bandpass'; filter.frequency.value = accent ? 3000 : 2000;
             const gain = ctx.createGain(); gain.gain.setValueAtTime((accent ? 0.08 : 0.03) * vol, time); gain.gain.exponentialRampToValueAtTime(0.001, time + 0.04);
             noise.connect(filter); filter.connect(gain); gain.connect(dest); noise.start(time);
+            noise.onended = () => { noise.disconnect(); filter.disconnect(); gain.disconnect(); };
         };
 
         const playBass = (ctx, dest, time, freq, duration, vol = 1.0) => {
@@ -321,6 +340,7 @@
             const osc = ctx.createOscillator(); osc.type = 'sine'; osc.frequency.setValueAtTime(freq, time);
             const gain = ctx.createGain(); gain.gain.setValueAtTime(0, time); gain.gain.linearRampToValueAtTime(0.3 * vol, time + 0.02); gain.gain.exponentialRampToValueAtTime(0.01, time + duration);
             osc.connect(gain); gain.connect(dest); osc.start(time); osc.stop(time + duration + 0.1);
+            osc.onended = () => { osc.disconnect(); gain.disconnect(); };
         };
 
         const playCheesyOrgan = (ctx, dest, time, freq, duration, vol = 1.0) => {
@@ -328,6 +348,7 @@
             const osc = ctx.createOscillator(); osc.type = 'sine'; osc.frequency.setValueAtTime(freq, time);
             const gain = ctx.createGain(); gain.gain.setValueAtTime(0, time); gain.gain.linearRampToValueAtTime(0.12 * vol, time + 0.05); gain.gain.setValueAtTime(0.12 * vol, time + duration - 0.05); gain.gain.linearRampToValueAtTime(0, time + duration);
             osc.connect(gain); gain.connect(dest); osc.start(time); osc.stop(time + duration);
+            osc.onended = () => { osc.disconnect(); gain.disconnect(); };
         };
 
         const playCheesyStrings = (ctx, dest, time, freq, duration, vol = 1.0) => {
@@ -336,6 +357,7 @@
             const filter = ctx.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.value = 600; 
             const gain = ctx.createGain(); gain.gain.setValueAtTime(0, time); gain.gain.linearRampToValueAtTime(0.04 * vol, time + 0.5); gain.gain.setValueAtTime(0.04 * vol, time + duration - 0.5); gain.gain.linearRampToValueAtTime(0, time + duration);
             osc.connect(filter); filter.connect(gain); gain.connect(dest); osc.start(time); osc.stop(time + duration);
+            osc.onended = () => { osc.disconnect(); filter.disconnect(); gain.disconnect(); };
         };
 
         const playDoorCloseSound = (ctx, dest) => {
@@ -365,7 +387,7 @@
            }
         }, [doorTrigger, audioContext]);
 
-        const N = { 'C2': 65.41, 'A2': 110.00, 'D2': 73.42, 'G2': 98.00, 'E3': 164.81, 'G3': 196.00, 'B3': 246.94, 'Db4': 277.18, 'E4': 329.63, 'G4': 392.00, 'F3': 174.61, 'A3': 220.00, 'C4': 261.63, 'D4': 293.66, 'F4': 349.23 };
+        const N = { 'C2': 65.41, 'A2': 110.00, 'D2': 73.42, 'G2': 98.00, 'E3': 164.81, 'G3': 196.00, 'B3': 246.94, 'Db4': 277.18, 'E4': 329.63, 'G4': 392.00, 'F3': 174.61, 'A3': 220.00, 'C4': 261.63, 'D4': 293.66, 'F4': 349.23, 'A4': 440.00 };
         const ELEVATOR_PROGRESSION = [ { root: N.C2, chord: [N.E3, N.G3, N.B3], bass: [N.C2, 82.41, 98.00, 110.00] }, { root: N.A2, chord: [N.Db4, N.E4, N.G4], bass: [N.A2, 138.59, 164.81, 196.00] }, { root: N.D2, chord: [N.F3, N.A3, N.C4], bass: [N.D2, 87.31, 110.00, 130.81] }, { root: N.G2, chord: [N.B3, N.D4, N.F4], bass: [N.G2, 123.47, 146.83, 174.61] } ];
         const melodyMap = [ {0: N.E4, 4: N.G4, 8: N.E4, 12: N.G4}, {0: N.E4, 4: N.G4, 8: N.E4, 12: N.Db4}, {0: N.F4, 4: N.A4, 8: N.F4, 12: N.A4}, {0: N.F4, 4: N.A4, 8: N.F4, 12: N.D4} ];
 
@@ -406,11 +428,11 @@
             if (!audioContext) return;
             const ctx = audioContext;
             const compressor = ctx.createDynamicsCompressor(); compressor.threshold.value = -12; compressor.ratio.value = 4;
-            const makeupGain = ctx.createGain(); makeupGain.gain.value = 3.0; 
+            const makeupGain = ctx.createGain(); makeupGain.gain.value = 1.5; 
             compressor.connect(makeupGain); makeupGain.connect(ctx.destination);
-            const reverbInput = setupReverb(ctx, compressor);
-            masterGainRef.current = reverbInput;
-            const lobbyGain = ctx.createGain(); lobbyGain.gain.value = 1.0; lobbyGain.connect(reverbInput); lobbyGainRef.current = lobbyGain;
+            const reverbNodes = setupReverb(ctx, compressor);
+            masterGainRef.current = reverbNodes.input;
+            const lobbyGain = ctx.createGain(); lobbyGain.gain.value = 1.0; lobbyGain.connect(reverbNodes.input); lobbyGainRef.current = lobbyGain;
 
             let isMounted = true;
             fetch('https://raw.githubusercontent.com/Felipe9272727/M-sica-pro-meu-jogo/main/Lobby%20Time(MP3_160K).mp3')
@@ -424,7 +446,10 @@
                 isMounted = false;
                 if (schedulerTimerRef.current) clearInterval(schedulerTimerRef.current);
                 if (sourceRef.current) { try { sourceRef.current.stop(); } catch(e) {} sourceRef.current.disconnect(); }
-                lobbyGain.disconnect(); reverbInput.disconnect(); compressor.disconnect(); makeupGain.disconnect();
+                lobbyGain.disconnect();
+                reverbNodes.input.disconnect(); reverbNodes.convolver.disconnect();
+                reverbNodes.wetGain.disconnect(); reverbNodes.dryGain.disconnect();
+                compressor.disconnect(); makeupGain.disconnect();
                 masterGainRef.current = null; lobbyGainRef.current = null;
             };
         }, [audioContext, scheduler]);
@@ -652,11 +677,16 @@
 
       const TextureMaterial = React.memo(({ url, color = "#ffffff", repeat = [1, 1], roughness = 0.8, metalness = 0.0, bumpScale = 0.0, transparent = false, opacity = 1.0, rotation = 0 }) => {
           const texture = useTexture(url);
+          const mapRef = useRef(null);
           const map = useMemo(() => {
+              if (mapRef.current) { mapRef.current.dispose(); }
               const cloned = texture.clone(); cloned.wrapS = cloned.wrapT = THREE.RepeatWrapping; cloned.repeat.set(repeat[0], repeat[1]);
               if (rotation !== 0) { cloned.center.set(0.5, 0.5); cloned.rotation = rotation; }
-              cloned.needsUpdate = true; return cloned;
+              cloned.needsUpdate = true; mapRef.current = cloned; return cloned;
           }, [texture, repeat[0], repeat[1], rotation]);
+          useEffect(() => {
+              return () => { if (mapRef.current) { mapRef.current.dispose(); mapRef.current = null; } };
+          }, []);
           return <meshStandardMaterial map={map} color={color} roughness={roughness} metalness={metalness} bumpMap={bumpScale > 0 ? map : undefined} bumpScale={bumpScale} transparent={transparent} opacity={opacity} />;
       });
 
@@ -667,11 +697,11 @@
             <mesh position={[0.6, 0, 0.08]}><sphereGeometry args={[0.05, 8, 8]} /><meshStandardMaterial color="#FFD54F" metalness={0.4} roughness={0.2} /></mesh>
           </group>
       ));
-      const WallPanel = React.memo(({ x, z, rot }) => (
+      const WallPanel = React.memo(({ x, z, rot, floor = 3 }) => (
           <group position={[x, 2.2, z]} rotation={[0, rot, 0]}>
             <mesh receiveShadow><boxGeometry args={[2, 1.2, 0.05]} /><meshStandardMaterial color="#212121" roughness={0.2} /></mesh>
             <mesh position={[0, 0, 0.03]}><boxGeometry args={[1.8, 1.0, 0.01]} /><meshBasicMaterial color="#000000" /></mesh>
-            <Text position={[0, 0, 0.04]} fontSize={0.2} color="#00FF00" font="https://fonts.gstatic.com/s/roboto/v18/KFOmCnqEu92Fr1Mu4mxM.woff" anchorX="center" anchorY="middle">3</Text>
+            <Text position={[0, 0, 0.04]} fontSize={0.2} color="#00FF00" font="https://fonts.gstatic.com/s/roboto/v18/KFOmCnqEu92Fr1Mu4mxM.woff" anchorX="center" anchorY="middle">{floor.toString()}</Text>
           </group>
       ));
       const CallPanel = React.memo(({ x, z, rot }) => (
@@ -692,9 +722,12 @@
       const ElevatorDoors = React.memo(({ closed }) => {
           const leftDoorRef = useRef(null); const rightDoorRef = useRef(null);
           useFrame((state, delta) => {
-              const speed = 5.0 * delta; const targetLeft = closed ? -0.76 : -2.3; const targetRight = closed ? 0.76 : 2.3;
-              if (leftDoorRef.current) leftDoorRef.current.position.x = THREE.MathUtils.lerp(leftDoorRef.current.position.x, targetLeft, speed);
-              if (rightDoorRef.current) rightDoorRef.current.position.x = THREE.MathUtils.lerp(rightDoorRef.current.position.x, targetRight, speed);
+              if (!leftDoorRef.current || !rightDoorRef.current) return;
+              const speed = Math.min(5.0 * delta, 1.0); const targetLeft = closed ? -0.76 : -2.3; const targetRight = closed ? 0.76 : 2.3;
+              const lx = leftDoorRef.current.position.x; const rx = rightDoorRef.current.position.x;
+              if (Math.abs(lx - targetLeft) < 0.001 && Math.abs(rx - targetRight) < 0.001) return;
+              leftDoorRef.current.position.x = THREE.MathUtils.lerp(lx, targetLeft, speed);
+              rightDoorRef.current.position.x = THREE.MathUtils.lerp(rx, targetRight, speed);
           });
           return (
               <group position={[0, 2.0, 2.92]}> 
@@ -806,9 +839,8 @@
           return (
               <group position={[x, 0, z]} rotation={[0, rot, 0]}>
                   <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, 0.05, 0]} receiveShadow><planeGeometry args={[7.8, 7.8]} /><TextureMaterial url={ASSETS.wood} color={COLORS.wood} repeat={[4, 4]} roughness={0.5} /></mesh>
-                  <mesh rotation={Math.PI/2, 0, 0} position={[0, 5.95, 0]}><planeGeometry args={[7.8, 7.8]} /><meshStandardMaterial color="#FFFFFF" roughness={0.9} /></mesh>
+                  <mesh rotation={[Math.PI/2, 0, 0]} position={[0, 5.95, 0]}><planeGeometry args={[7.8, 7.8]} /><meshStandardMaterial color="#FFFFFF" roughness={0.9} /></mesh>
                   <mesh position={[0, 3, -4]} castShadow receiveShadow><boxGeometry args={[8, 6, 0.2]} /><meshStandardMaterial color={COLORS.houseWall} roughness={0.8} /></mesh>
-                  <mesh position={[-4, 3, 0]} rotation={[0, Math.PI/2, 0]} castShadow receiveShadow><boxGeometry args={[8, 6, 0.2]} /><meshStandardMaterial color={COLORS.houseWall} roughness={0.8} /></mesh>
                   <mesh position={[-4, 3, 0]} rotation={[0, Math.PI/2, 0]} castShadow receiveShadow><boxGeometry args={[8, 6, 0.2]} /><meshStandardMaterial color={COLORS.houseWall} roughness={0.8} /></mesh>
                   <mesh position={[4, 3, 0]} rotation={[0, Math.PI/2, 0]} castShadow receiveShadow><boxGeometry args={[8, 6, 0.2]} /><meshStandardMaterial color={COLORS.houseWall} roughness={0.8} /></mesh>
                   <mesh position={[-2.35, 3, 4]} castShadow receiveShadow><boxGeometry args={[3.3, 6, 0.2]} /><meshStandardMaterial color={COLORS.houseWall} roughness={0.8} /></mesh>
@@ -836,7 +868,7 @@
       
       const DussekarCharacter = ({ position, rotation }) => {
         const [dialogue, setDialogue] = useState(null);
-        const { scene } = useGLTF("https://raw.githubusercontent.com/Felipe9272727/Vers-o-definitiva/main/blocky%20character%203d%20model.glb");
+        const { scene } = useGLTF(DUSSEKAR_URL);
         const clonedScene = useMemo(() => scene.clone(), [scene]);
         const group = useRef();
         useFrame((state) => { if (group.current) group.current.position.y = position[1] + Math.sin(state.clock.elapsedTime * 0.8) * 0.015; });
@@ -883,6 +915,7 @@
             return [...i, ...w];
         }, [walkAnims, idleAnims]), group);
         const aiState = useRef({ state: 'Idle', target: new Vector3(0, 0, 0), timer: 0 });
+        const _npcDirection = useRef(new Vector3());
         useEffect(() => {
             scene.traverse((child) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; if (child.material) { child.material.side = THREE.DoubleSide; child.material.transparent = false; child.material.alphaTest = 0.5; } } });
             if(actions['Idle']) actions['Idle'].play();
@@ -915,13 +948,23 @@
                     if (walkAction) { walkAction.reset().fadeIn(0.5).play(); idleAction?.fadeOut(0.5); }
                 }
             } else if (ai.state === 'Walking') {
-                const direction = new Vector3().subVectors(ai.target, pos); direction.y = 0; const dist = direction.length();
+                const distToPlayer = playerPositionRef?.current ? pos.distanceTo(playerPositionRef.current) : Infinity;
+                if (distToPlayer < 1.2) {
+                    ai.state = 'Idle'; ai.timer = 1 + Math.random() * 2;
+                    const walkAction = actions['Walking']; const idleAction = actions['Idle'];
+                    if (idleAction) { idleAction.reset().fadeIn(0.5).play(); walkAction?.fadeOut(0.5); }
+                    return;
+                }
+                const direction = _npcDirection.current.subVectors(ai.target, pos); direction.y = 0; const dist = direction.length();
                 if (dist < 0.5) {
                     ai.state = 'Idle'; ai.timer = 2 + Math.random() * 4;
                     const walkAction = actions['Walking']; const idleAction = actions['Idle'];
                     if (idleAction) { idleAction.reset().fadeIn(0.5).play(); walkAction?.fadeOut(0.5); }
                 } else {
                     direction.normalize(); const moveSpeed = 2.0 * delta; pos.addScaledVector(direction, moveSpeed);
+                    // Bug #8 fix: Clamp NPC within lobby bounds (prevent walking through walls/into elevator)
+                    pos.x = Math.max(-9, Math.min(9, pos.x));
+                    pos.z = Math.max(-9, Math.min(9, pos.z));
                     const targetRotation = Math.atan2(direction.x, direction.z); const currentRotation = group.current.rotation.y;
                     let diff = targetRotation - currentRotation; while (diff > Math.PI) diff -= Math.PI * 2; while (diff < -Math.PI) diff += Math.PI * 2;
                     group.current.rotation.y += diff * 5 * delta;
@@ -958,11 +1001,12 @@
         );
       };
 
-      const LobbyEnvironment = React.memo(({ npcPositionRef, isPaused, playerPositionRef }) => {
+      const LobbyEnvironment = React.memo(({ npcPositionRef, isPaused, playerPositionRef, currentFloor = 1 }) => {
           const W = 20; const L = 20; const H = 4.5; const WH = 1.2;
           return (
               <group>
                   <color attach="background" args={['#050505']} />
+                  <fog attach="fog" args={['#050505', 8, 25]} />
                   <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow><planeGeometry args={[W, L]} /><TextureMaterial url={ASSETS.lobbyFloor} repeat={[8, 8]} roughness={0.5} /></mesh>
                   <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, H, 0]}><planeGeometry args={[W, L]} /><TextureMaterial url={ASSETS.ceiling} repeat={[6, 6]} roughness={0.9} /></mesh>
                   <ambientLight intensity={0.6} color="#FFFFFF" />
@@ -979,7 +1023,7 @@
                      <Shop position={[0, 0, 0]} /> 
                   </group>
                   <ElevatorFacade z={-L/2} width={W} />
-                  <Door x={-W/2 + 0.35} z={-5} rot={Math.PI/2} /> <Door x={-W/2 + 0.35} z={5} rot={Math.PI/2} /> <Door x={W/2 - 0.35} z={-5} rot={-Math.PI/2} /> <WallPanel x={-W/2 + 0.3} z={0} rot={Math.PI/2} />
+                  <Door x={-W/2 + 0.35} z={-5} rot={Math.PI/2} /> <Door x={-W/2 + 0.35} z={5} rot={Math.PI/2} /> <Door x={W/2 - 0.35} z={-5} rot={-Math.PI/2} /> <WallPanel x={-W/2 + 0.3} z={0} rot={Math.PI/2} floor={currentFloor} />
                   <CeilingLight x={-5} z={-5} /> <CeilingLight x={-5} z={0} /> <CeilingLight x={-5} z={5} /> <CeilingLight x={5} z={-5} /> <CeilingLight x={5} z={0} /> <CeilingLight x={5} z={5} />
                   <LobbyNPC positionRef={npcPositionRef} isPaused={isPaused} playerPositionRef={playerPositionRef} />
               </group>
@@ -1009,7 +1053,7 @@
       const World = ({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef }) => {
           return (
               <>
-                  {level === 0 && <LobbyEnvironment npcPositionRef={npcPositionRef} isPaused={isPaused} playerPositionRef={playerPositionRef} />}
+                  {level === 0 && <LobbyEnvironment npcPositionRef={npcPositionRef} isPaused={isPaused} playerPositionRef={playerPositionRef} currentFloor={level + 1} />}
                   {level === 1 && <FlatMapEnvironment houseDoorOpen={houseDoorOpen} />}
                   <ElevatorInterior timer={timer} doorsClosed={doorsClosed} level={level} />
               </>
@@ -1025,17 +1069,21 @@
             if (w[0]) w[0].name = "Walking"; if (i[0]) i[0].name = "Idle";
             return [...i, ...w];
         }, [walkingAnims, idleAnims]), scene);
-        const hipsRef = useRef(null); const currentOpacity = useRef(1.0);
+        const hipsRef = useRef(null); const currentOpacity = useRef(1.0); const meshesRef = useRef([]);
         useEffect(() => {
+           meshesRef.current = [];
            scene.traverse((child) => {
-             if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; if (child.material) { child.material.transparent = true; child.material.depthWrite = true; child.material.alphaTest = 0; child.material.side = THREE.DoubleSide; child.material.metalness = 0.0; child.material.roughness = 1.0; child.material.needsUpdate = true; } }
+             if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; meshesRef.current.push(child); if (child.material) { child.material.transparent = true; child.material.depthWrite = true; child.material.alphaTest = 0; child.material.side = THREE.DoubleSide; child.material.metalness = 0.0; child.material.roughness = 1.0; child.material.needsUpdate = true; } }
              if ((child.isBone || child.type === 'Bone') && !hipsRef.current) { if (child.name.toLowerCase().includes('hips') || child.name.toLowerCase().includes('root')) hipsRef.current = child; }
            });
         }, [scene]);
         useFrame((state, delta) => {
             if (hipsRef.current) { hipsRef.current.position.x = 0; hipsRef.current.position.z = 0; }
-            const targetOpacity = visible ? 1.0 : 0.0; currentOpacity.current = THREE.MathUtils.lerp(currentOpacity.current, targetOpacity, 8 * delta);
-            scene.traverse((child) => { if (child.isMesh && child.material) { child.material.opacity = currentOpacity.current; child.visible = currentOpacity.current > 0.01; } });
+            const targetOpacity = visible ? 1.0 : 0.0;
+            // Early return if already at target — skip lerp AND mesh iteration entirely
+            if (Math.abs(currentOpacity.current - targetOpacity) < 0.001) return;
+            currentOpacity.current = THREE.MathUtils.lerp(currentOpacity.current, targetOpacity, 8 * delta);
+            for (const mesh of meshesRef.current) { if (mesh.material) { mesh.material.opacity = currentOpacity.current; mesh.visible = currentOpacity.current > 0.01; } }
         });
         useEffect(() => {
            const action = actions[animation === 'Walking' ? 'Walking' : 'Idle']; const other = actions[animation === 'Walking' ? 'Idle' : 'Walking'];
@@ -1046,19 +1094,126 @@
 
       const SPEED = 4.0; const PLAYER_RADIUS = 0.5; const ROOM_WIDTH = 20; const ROOM_LENGTH = 20; const ELEVATOR_WIDTH = 6.5; const ELEVATOR_DEPTH = 6.0; const ELEVATOR_Z_START = -10.0; const DOOR_WIDTH = 3.0; const LEVEL1_SIZE = 50; const LEVEL1_HALF = LEVEL1_SIZE / 2;
       const HOUSE_Z = 10; const HOUSE_HALF_W = 4; const HOUSE_HALF_D = 4; const HOUSE_MIN_X = -HOUSE_HALF_W; const HOUSE_MAX_X = HOUSE_HALF_W; const HOUSE_MIN_Z = HOUSE_Z - HOUSE_HALF_D; const HOUSE_MAX_Z = HOUSE_Z + HOUSE_HALF_D; const HOUSE_DOOR_Z = 6; const HOUSE_DOOR_X = 0;
+      const TOUCH_LOOK_SENSITIVITY = 0.006;
+
+      // --- COLLISION HELPERS ---
+      function resolveElevatorCrossing(currentPosZ, nextPosX, nextPosZ, doorsClosed, doorHalfWidth, wallBuffer) {
+          const isCrossing = (currentPosZ >= ELEVATOR_Z_START && nextPosZ < ELEVATOR_Z_START) || (currentPosZ < ELEVATOR_Z_START && nextPosZ >= ELEVATOR_Z_START);
+          
+          if (isCrossing) {
+              if (doorsClosed) {
+                  return currentPosZ >= ELEVATOR_Z_START
+                      ? Math.max(currentPosZ, ELEVATOR_Z_START + 0.1)
+                      : Math.min(currentPosZ, ELEVATOR_Z_START - 0.1);
+              }
+              if (Math.abs(nextPosX) > doorHalfWidth) {
+                  return currentPosZ >= ELEVATOR_Z_START
+                      ? Math.max(currentPosZ, ELEVATOR_Z_START + 0.1)
+                      : Math.min(currentPosZ, ELEVATOR_Z_START - 0.1);
+              }
+              return nextPosZ;
+          }
+          
+          // Near the threshold but not crossing
+          if (Math.abs(nextPosZ - ELEVATOR_Z_START) < wallBuffer && Math.abs(nextPosX) > doorHalfWidth) {
+              return currentPosZ >= ELEVATOR_Z_START
+                  ? Math.max(nextPosZ, ELEVATOR_Z_START + wallBuffer)
+                  : Math.min(nextPosZ, ELEVATOR_Z_START - wallBuffer);
+          }
+          
+          return nextPosZ;
+      }
+
+      function applyLobbyCollision(nextX, nextZ, wallBuffer) {
+          const maxX = (ROOM_WIDTH / 2) - wallBuffer;
+          const maxZ = (ROOM_LENGTH / 2) - wallBuffer;
+          const doorHalfWidth = (DOOR_WIDTH / 2) - 0.2;
+
+          // Allow passage through the elevator door corridor
+          const nearElevatorWall = nextZ < -(ROOM_LENGTH / 2) + wallBuffer + 0.6;
+          const inDoorCorridor = Math.abs(nextX) <= doorHalfWidth;
+          const minZ = (nearElevatorWall && inDoorCorridor)
+              ? -(ROOM_LENGTH / 2) - 2.0   // let player pass into elevator
+              : -(ROOM_LENGTH / 2) + wallBuffer;
+
+          return {
+              x: Math.max(-maxX, Math.min(maxX, nextX)),
+              z: Math.max(minZ, Math.min(maxZ, nextZ))
+          };
+      }
+
+      function applyOutdoorCollision(nextX, nextZ, currentX, currentZ, wallBuffer, houseDoorOpen) {
+          const limit = LEVEL1_HALF - wallBuffer;
+          let validX = Math.max(-limit, Math.min(limit, nextX));
+          let validZ = Math.max(-limit, Math.min(limit, nextZ));
+
+          // Inflated bounds for collision detection
+          const bounds = {
+              minX: HOUSE_MIN_X - wallBuffer, maxX: HOUSE_MAX_X + wallBuffer,
+              minZ: HOUSE_MIN_Z - wallBuffer, maxZ: HOUSE_MAX_Z + wallBuffer
+          };
+
+          if (validX >= bounds.minX && validX <= bounds.maxX && validZ >= bounds.minZ && validZ <= bounds.maxZ) {
+              // Use REAL wall positions (not inflated) to determine origin side
+              // This prevents the "one frame inside bounds = trapped" bug
+              const wasOutsideLeft  = currentX <= HOUSE_MIN_X;
+              const wasOutsideRight = currentX >= HOUSE_MAX_X;
+              const wasOutsideFront = currentZ <= HOUSE_MIN_Z;
+              const wasOutsideBack  = currentZ >= HOUSE_MAX_Z;
+
+              if (wasOutsideLeft) {
+                  validX = HOUSE_MIN_X - wallBuffer;
+              } else if (wasOutsideRight) {
+                  validX = HOUSE_MAX_X + wallBuffer;
+              } else if (wasOutsideFront) {
+                  const inDoorGap = Math.abs(validX - HOUSE_DOOR_X) < 0.7;
+                  if (!(houseDoorOpen && inDoorGap)) {
+                      validZ = HOUSE_MIN_Z - wallBuffer;
+                  }
+                  // If door open and in gap, let player pass through
+              } else if (wasOutsideBack) {
+                  validZ = HOUSE_MAX_Z + wallBuffer;
+              } else {
+                  // Player is genuinely inside the house — push toward front door
+                  validZ = HOUSE_MIN_Z - wallBuffer;
+              }
+          }
+
+          return { x: validX, z: validZ };
+      }
 
       const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueOpen, sharedPositionRef }) => {
         const { camera, size } = useThree();
         const position = useRef(new Vector3(0, 0, 8)); const charRotation = useRef(new Euler(0, Math.PI, 0)); const cameraAngles = useRef({ theta: 0, phi: 0.2 });
         const avatarGroupRef = useRef(); const cameraLookAtRef = useRef(new Vector3()); 
         const [animState, setAnimState] = useState('Idle');
+        const currentAnimStateRef = useRef('Idle');
         const hasTriggeredElevator = useRef(false); const HEAD_HEIGHT = 1.6;
+        // Reusable Vector3 refs to avoid GC pressure in useFrame
+        const _camDir = useRef(new Vector3());
+        const _rightDir = useRef(new Vector3());
+        const _moveVec = useRef(new Vector3());
+        const _tempVec = useRef(new Vector3());
+        const _tempVec2 = useRef(new Vector3());
+        const _tempVec3 = useRef(new Vector3());
+        const _dirToPlayer = useRef(new Vector3());
+        const _targetCamPos = useRef(new Vector3());
+        const _targetLookAt = useRef(new Vector3());
+        const _currentPos = useRef(new Vector3());
+        const _nextPos = useRef(new Vector3());
+        const _camPos = useRef(new Vector3());
 
-        useEffect(() => { hasTriggeredElevator.current = false; }, [currentLevel]);
+        useEffect(() => {
+            hasTriggeredElevator.current = false;
+            // Don't reset position during elevator transitions —
+            // the player should stay inside the elevator and walk out when doors open.
+        }, [currentLevel]);
         useEffect(() => { cameraAngles.current.theta = Math.PI; cameraAngles.current.phi = 0.2; }, []);
 
         useFrame((state, delta) => {
           if (!active) return;
+          // Bug #3 fix: Cap delta to prevent teleporting when switching tabs
+          const clampedDelta = Math.min(delta, 0.05);
           const isFirstPerson = zoomLevel < 0.5;
           if (sharedPositionRef) sharedPositionRef.current.copy(position.current);
 
@@ -1066,18 +1221,19 @@
               setAnimState('Idle');
               if (avatarGroupRef.current) { avatarGroupRef.current.position.copy(position.current); avatarGroupRef.current.rotation.copy(charRotation.current); }
               const npcPos = npcPositionRef.current; const playerPos = position.current;
-              const dirToPlayer = new Vector3().subVectors(playerPos, npcPos).normalize(); if (dirToPlayer.lengthSq() < 0.001) dirToPlayer.set(0, 0, 1);
-              const targetCamPos = new Vector3().copy(npcPos).addScaledVector(dirToPlayer, 2.2).add(new Vector3(0, 1.75, 0)); 
-              const targetLookAt = new Vector3().copy(npcPos).add(new Vector3(0, 1.35, 0));
-              camera.position.lerp(targetCamPos, 5 * delta);
-              if (cameraLookAtRef.current.distanceTo(targetLookAt) > 10) { cameraLookAtRef.current.copy(playerPos).add(new Vector3(0, 1.6, 0)); }
-              cameraLookAtRef.current.lerp(targetLookAt, 5 * delta);
+              const dirToPlayer = _dirToPlayer.current.subVectors(playerPos, npcPos).normalize(); if (dirToPlayer.lengthSq() < 0.001) dirToPlayer.set(0, 0, 1);
+              const targetCamPos = _targetCamPos.current.copy(npcPos).addScaledVector(dirToPlayer, 2.2).add(_tempVec.current.set(0, 1.75, 0)); 
+              const targetLookAt = _targetLookAt.current.copy(npcPos).add(_tempVec2.current.set(0, 1.35, 0));
+              camera.position.lerp(targetCamPos, 5 * clampedDelta);
+              if (cameraLookAtRef.current.distanceTo(targetLookAt) > 10) { cameraLookAtRef.current.copy(playerPos).add(_tempVec.current.set(0, 1.6, 0)); }
+              cameraLookAtRef.current.lerp(targetLookAt, 5 * clampedDelta);
               camera.lookAt(cameraLookAtRef.current);
-              camera.fov = THREE.MathUtils.lerp(camera.fov, 40, 5 * delta); camera.updateProjectionMatrix();
+              const targetDialogueFov = 40;
+              if (Math.abs(camera.fov - targetDialogueFov) > 0.1) { camera.fov = THREE.MathUtils.lerp(camera.fov, targetDialogueFov, 5 * clampedDelta); camera.updateProjectionMatrix(); }
           } else {
               const baseSens = 0.003; const sensMultiplier = isFirstPerson ? 1.5 : 1.0; const sensitivity = baseSens * sensMultiplier;
               if (isDesktop) {
-                 if (lookInput.current.x !== 0 || lookInput.current.y !== 0) { cameraAngles.current.theta -= lookInput.current.x * sensitivity * 500 * delta; cameraAngles.current.phi += lookInput.current.y * sensitivity * 500 * delta; lookInput.current.x = 0; lookInput.current.y = 0; }
+                 if (lookInput.current.x !== 0 || lookInput.current.y !== 0) { cameraAngles.current.theta -= lookInput.current.x * sensitivity * 500 * clampedDelta; cameraAngles.current.phi += lookInput.current.y * sensitivity * 500 * clampedDelta; lookInput.current.x = 0; lookInput.current.y = 0; }
               } else {
                  if (lookInput.current.x !== 0 || lookInput.current.y !== 0) { cameraAngles.current.theta -= lookInput.current.x * sensMultiplier; cameraAngles.current.phi += lookInput.current.y * sensMultiplier; lookInput.current.x = 0; lookInput.current.y = 0; }
               }
@@ -1085,51 +1241,50 @@
               const forwardInput = -moveInput.current.y; const strafeInput = moveInput.current.x; let isMoving = false;
               if (Math.abs(forwardInput) > 0.01 || Math.abs(strafeInput) > 0.01) {
                   isMoving = true;
-                  const camDir = new Vector3(Math.sin(cameraAngles.current.theta), 0, Math.cos(cameraAngles.current.theta));
-                  const rightDir = new Vector3(Math.sin(cameraAngles.current.theta - Math.PI/2), 0, Math.cos(cameraAngles.current.theta - Math.PI/2));
-                  const moveVec = new Vector3().addScaledVector(camDir, -forwardInput).addScaledVector(rightDir, -strafeInput).normalize().multiplyScalar(SPEED * delta);
-                  const currentPos = position.current.clone(); const nextPos = currentPos.clone().add(moveVec);
+                  const camDir = _camDir.current.set(Math.sin(cameraAngles.current.theta), 0, Math.cos(cameraAngles.current.theta));
+                  const rightDir = _rightDir.current.set(Math.sin(cameraAngles.current.theta - Math.PI/2), 0, Math.cos(cameraAngles.current.theta - Math.PI/2));
+                  const moveVec = _moveVec.current.set(0, 0, 0).addScaledVector(camDir, -forwardInput).addScaledVector(rightDir, -strafeInput).normalize().multiplyScalar(SPEED * clampedDelta);
+                  const currentPos = _currentPos.current.copy(position.current); const nextPos = _nextPos.current.copy(currentPos).add(moveVec);
                   let validX = nextPos.x; let validZ = nextPos.z; const wallBuffer = PLAYER_RADIUS; const doorHalfWidth = (DOOR_WIDTH / 2) - 0.2; const inElevatorZone = nextPos.z < ELEVATOR_Z_START;
                   if (!inElevatorZone) {
                       if (currentLevel === 0) {
-                          const maxX = (ROOM_WIDTH / 2) - wallBuffer; if (nextPos.x > maxX) validX = maxX; if (nextPos.x < -maxX) validX = -maxX;
-                          if (nextPos.z > (ROOM_LENGTH / 2) - wallBuffer) validZ = (ROOM_LENGTH / 2) - wallBuffer;
+                          const clamped = applyLobbyCollision(nextPos.x, nextPos.z, wallBuffer);
+                          validX = clamped.x; validZ = clamped.z;
                       } else {
-                          const limit = LEVEL1_HALF - wallBuffer; if (nextPos.x > limit) validX = limit; if (nextPos.x < -limit) validX = -limit; if (nextPos.z > limit) validZ = limit;
-                          const houseBoundsExpanded = { minX: HOUSE_MIN_X - wallBuffer, maxX: HOUSE_MAX_X + wallBuffer, minZ: HOUSE_MIN_Z - wallBuffer, maxZ: HOUSE_MAX_Z + wallBuffer };
-                          const isInside = (x, z, bounds) => { return x >= bounds.minX && x <= bounds.maxX && z >= bounds.minZ && z <= bounds.maxZ; };
-                          if (isInside(nextPos.x, nextPos.z, houseBoundsExpanded)) {
-                              const distToLeft = Math.abs(nextPos.x - HOUSE_MIN_X); const distToRight = Math.abs(nextPos.x - HOUSE_MAX_X); const distToFront = Math.abs(nextPos.z - HOUSE_MIN_Z); const distToBack = Math.abs(nextPos.z - HOUSE_MAX_Z); const min = Math.min(distToLeft, distToRight, distToFront, distToBack);
-                              if (min === distToLeft) { if (currentPos.x < HOUSE_MIN_X) validX = HOUSE_MIN_X - wallBuffer; else validX = HOUSE_MIN_X + wallBuffer; } 
-                              else if (min === distToRight) { if (currentPos.x > HOUSE_MAX_X) validX = HOUSE_MAX_X + wallBuffer; else validX = HOUSE_MAX_X - wallBuffer; } 
-                              else if (min === distToBack) { if (currentPos.z > HOUSE_MAX_Z) validZ = HOUSE_MAX_Z + wallBuffer; else validZ = HOUSE_MAX_Z - wallBuffer; } 
-                              else if (min === distToFront) { const inDoorGap = Math.abs(nextPos.x) < 0.7; if (houseDoorOpen && inDoorGap) { } else { if (currentPos.z < HOUSE_MIN_Z) validZ = HOUSE_MIN_Z - wallBuffer; else validZ = HOUSE_MIN_Z + wallBuffer; } }
-                          }
+                          const clamped = applyOutdoorCollision(nextPos.x, nextPos.z, currentPos.x, currentPos.z, wallBuffer, houseDoorOpen);
+                          validX = clamped.x; validZ = clamped.z;
                       }
-                  } else { const maxX = (ELEVATOR_WIDTH / 2) - wallBuffer; if (nextPos.x > maxX) validX = maxX; if (nextPos.x < -maxX) validX = -maxX; }
-                  const elevatorBackZ = ELEVATOR_Z_START - ELEVATOR_DEPTH + wallBuffer; if (nextPos.z < elevatorBackZ) validZ = elevatorBackZ;
-                  const isCrossing = (currentPos.z >= ELEVATOR_Z_START && nextPos.z < ELEVATOR_Z_START) || (currentPos.z < ELEVATOR_Z_START && nextPos.z >= ELEVATOR_Z_START);
-                  if (isCrossing) { if (doorsClosed) { if (currentPos.z >= ELEVATOR_Z_START) validZ = Math.max(currentPos.z, ELEVATOR_Z_START + 0.1); else validZ = Math.min(currentPos.z, ELEVATOR_Z_START - 0.1); } else { if (Math.abs(nextPos.x) > doorHalfWidth) { if (currentPos.z >= ELEVATOR_Z_START) validZ = Math.max(currentPos.z, ELEVATOR_Z_START + 0.1); else validZ = Math.min(currentPos.z, ELEVATOR_Z_START - 0.1); } } } else { if (Math.abs(nextPos.z - ELEVATOR_Z_START) < wallBuffer) { if (Math.abs(nextPos.x) > doorHalfWidth) { if (currentPos.z >= ELEVATOR_Z_START) validZ = Math.max(validZ, ELEVATOR_Z_START + wallBuffer); else validZ = Math.min(validZ, ELEVATOR_Z_START - wallBuffer); } } }
+                  } else { const maxX = (ELEVATOR_WIDTH / 2) - wallBuffer; validX = Math.max(-maxX, Math.min(maxX, nextPos.x)); }
+                  const elevatorBackZ = ELEVATOR_Z_START - ELEVATOR_DEPTH + wallBuffer; if (validZ < elevatorBackZ) validZ = elevatorBackZ;
+                  validZ = resolveElevatorCrossing(currentPos.z, nextPos.x, validZ, doorsClosed, doorHalfWidth, wallBuffer);
+
                   position.current.x = validX; position.current.z = validZ; position.current.y = 0; 
-                  if (isFirstPerson) { charRotation.current.y = cameraAngles.current.theta + Math.PI; } else { const angle = Math.atan2(moveVec.x, moveVec.z); let targetRot = angle; const currentRot = charRotation.current.y; let diff = targetRot - currentRot; while (diff > Math.PI) diff -= Math.PI * 2; while (diff < -Math.PI) diff += Math.PI * 2; charRotation.current.y += diff * 10 * delta; }
-                  if (currentLevel === 1) { const dx = position.current.x - HOUSE_DOOR_X; const dz = position.current.z - HOUSE_DOOR_Z; const dist = Math.sqrt(dx*dx + dz*dz); if (dist < 3.0) onInteractionUpdate(true); else onInteractionUpdate(false); } else { onInteractionUpdate(false); }
-                  if (currentLevel === 0 && npcPositionRef && npcPositionRef.current) { const dist = position.current.distanceTo(npcPositionRef.current); onNpcInteractionUpdate(dist < 4.0); } else { onNpcInteractionUpdate(false); }
-                  if (position.current.z < ELEVATOR_Z_START - 1.0 && !hasTriggeredElevator.current) { if (currentLevel === 0) { hasTriggeredElevator.current = true; onEnterElevator(); } }
+                  if (isFirstPerson) { charRotation.current.y = cameraAngles.current.theta + Math.PI; } else { const angle = Math.atan2(moveVec.x, moveVec.z); let targetRot = angle; const currentRot = charRotation.current.y; let diff = targetRot - currentRot; while (diff > Math.PI) diff -= Math.PI * 2; while (diff < -Math.PI) diff += Math.PI * 2; charRotation.current.y += diff * 10 * clampedDelta; }
               }
-              setAnimState(isMoving ? 'Walking' : 'Idle');
+
+              // Bug #5 fix: Interaction checks run ALWAYS, not just when moving
+              if (currentLevel === 1) { const dx = position.current.x - HOUSE_DOOR_X; const dz = position.current.z - HOUSE_DOOR_Z; const dist = Math.sqrt(dx*dx + dz*dz); if (dist < 3.0) onInteractionUpdate(true); else onInteractionUpdate(false); } else { onInteractionUpdate(false); }
+              if (currentLevel === 0 && npcPositionRef && npcPositionRef.current) { const dist = position.current.distanceTo(npcPositionRef.current); onNpcInteractionUpdate(dist < 4.0); } else { onNpcInteractionUpdate(false); }
+              // Bug #4 fix: Allow elevator entry from ANY level (removed currentLevel === 0 check)
+              if (position.current.z < ELEVATOR_Z_START - 0.2 && !hasTriggeredElevator.current) { hasTriggeredElevator.current = true; onEnterElevator(); }
+
+              const newAnimState = isMoving ? 'Walking' : 'Idle';
+              if (newAnimState !== currentAnimStateRef.current) { currentAnimStateRef.current = newAnimState; setAnimState(newAnimState); }
               if (avatarGroupRef.current) { avatarGroupRef.current.position.copy(position.current); avatarGroupRef.current.rotation.copy(charRotation.current); }
               const lookTargetY = position.current.y + HEAD_HEIGHT;
-              const normalTargetLookAt = new Vector3(position.current.x, lookTargetY, position.current.z);
-              cameraLookAtRef.current.lerp(normalTargetLookAt, 10 * delta); 
+              const normalTargetLookAt = _tempVec3.current.set(position.current.x, lookTargetY, position.current.z);
+              cameraLookAtRef.current.lerp(normalTargetLookAt, 10 * clampedDelta); 
               if (isFirstPerson) {
                   const p = position.current; camera.position.set(p.x, lookTargetY, p.z);
                   const lookDist = 5; const tx = p.x - Math.sin(cameraAngles.current.theta) * lookDist * Math.cos(cameraAngles.current.phi); const tz = p.z - Math.cos(cameraAngles.current.theta) * lookDist * Math.cos(cameraAngles.current.phi); const ty = lookTargetY - Math.sin(cameraAngles.current.phi) * lookDist;
-                  camera.lookAt(tx, ty, tz); camera.fov = 90; camera.updateProjectionMatrix();
+                  camera.lookAt(tx, ty, tz);
+                  // Bug #6 fix: Only update projection matrix if FOV actually changed
+                  if (camera.fov !== 90) { camera.fov = 90; camera.updateProjectionMatrix(); }
               } else {
                   const aspect = size.width / size.height; const isPortrait = aspect < 1.0; const targetFov = isPortrait ? 90 : 75;
-                  if (Math.abs(camera.fov - targetFov) > 0.1) { camera.fov = THREE.MathUtils.lerp(camera.fov, targetFov, 5 * delta); camera.updateProjectionMatrix(); }
+                  if (Math.abs(camera.fov - targetFov) > 0.1) { camera.fov = THREE.MathUtils.lerp(camera.fov, targetFov, 5 * clampedDelta); camera.updateProjectionMatrix(); }
                   const cx = position.current.x + Math.sin(cameraAngles.current.theta) * zoomLevel * Math.cos(cameraAngles.current.phi); const cz = position.current.z + Math.cos(cameraAngles.current.theta) * zoomLevel * Math.cos(cameraAngles.current.phi); const cy = lookTargetY + Math.sin(cameraAngles.current.phi) * zoomLevel; const safeCy = Math.max(cy, 0.2);
-                  camera.position.lerp(new Vector3(cx, safeCy, cz), 10 * delta); camera.lookAt(position.current.x, lookTargetY, position.current.z);
+                  camera.position.lerp(_camPos.current.set(cx, safeCy, cz), 10 * clampedDelta); camera.lookAt(position.current.x, lookTargetY, position.current.z);
               }
           }
         });
@@ -1143,22 +1298,31 @@
         const [showContent, setShowContent] = useState(false);
         const [flickerOpacity, setFlickerOpacity] = useState(1);
         
+        const particles = useMemo(() => Array.from({ length: 30 }, (_, i) => ({
+          id: i,
+          left: Math.random() * 100,
+          top: Math.random() * 100,
+          duration: 5 + Math.random() * 10,
+          delay: Math.random() * 5,
+          scale: 0.5 + Math.random(),
+        })), []);
+        
         useEffect(() => {
-          // Animate doors opening
+          const flickerResetTimerRef = { current: null };
+
           const doorTimer = setTimeout(() => {
             setDoorPosition(100);
           }, 500);
           
-          // Show content after doors open
           const contentTimer = setTimeout(() => {
             setShowContent(true);
           }, 1200);
           
-          // Flicker effect
           const flickerInterval = setInterval(() => {
             if (Math.random() > 0.95) {
               setFlickerOpacity(0.7);
-              setTimeout(() => setFlickerOpacity(1), 100);
+              if (flickerResetTimerRef.current) clearTimeout(flickerResetTimerRef.current);
+              flickerResetTimerRef.current = setTimeout(() => setFlickerOpacity(1), 100);
             }
           }, 200);
           
@@ -1166,6 +1330,7 @@
             clearTimeout(doorTimer);
             clearTimeout(contentTimer);
             clearInterval(flickerInterval);
+            if (flickerResetTimerRef.current) clearTimeout(flickerResetTimerRef.current);
           };
         }, []);
         
@@ -1174,36 +1339,28 @@
               
               {/* Cinematic Background with Parallax Layers */}
               <div className="absolute inset-0" style={{ opacity: flickerOpacity, transition: 'opacity 0.05s' }}>
-                {/* Deep background - Dark void */}
                 <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a0f] via-[#0d0d15] to-[#05050a]" />
-                
-                {/* Volumetric light rays from above */}
                 <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[200%] h-[60%] bg-gradient-to-b from-amber-500/[0.03] via-transparent to-transparent" style={{ clipPath: 'polygon(40% 0%, 60% 0%, 80% 100%, 20% 100%)' }} />
-                
-                {/* Floating dust particles */}
                 <div className="absolute inset-0 overflow-hidden">
-                  {[...Array(30)].map((_, i) => (
+                  {particles.map(p => (
                     <div
-                      key={i}
+                      key={p.id}
                       className="absolute w-1 h-1 bg-yellow-200/30 rounded-full"
                       style={{
-                        left: `${Math.random() * 100}%`,
-                        top: `${Math.random() * 100}%`,
-                        animation: `float ${5 + Math.random() * 10}s ease-in-out infinite`,
-                        animationDelay: `${Math.random() * 5}s`,
-                        transform: `scale(${0.5 + Math.random() * 1})`
+                        left: `${p.left}%`,
+                        top: `${p.top}%`,
+                        animation: `float ${p.duration}s ease-in-out infinite`,
+                        animationDelay: `${p.delay}s`,
+                        transform: `scale(${p.scale})`
                       }}
                     />
                   ))}
                 </div>
-                
-                {/* Subtle vignette */}
                 <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,rgba(0,0,0,0.7)_100%)]" />
               </div>
               
               {/* Animated Elevator Doors */}
               <div className="absolute inset-0 pointer-events-none z-10">
-                {/* Left Door */}
                 <div 
                   className="absolute top-0 bottom-0 left-0 w-1/2 bg-gradient-to-r from-[#1a1a1a] via-[#252525] to-[#1f1f1f] border-r border-white/5 shadow-2xl"
                   style={{ 
@@ -1211,13 +1368,10 @@
                     transition: 'transform 1.2s cubic-bezier(0.4, 0, 0.2, 1)'
                   }}
                 >
-                  {/* Door panel details */}
                   <div className="absolute right-4 top-4 bottom-4 w-1 bg-gradient-to-b from-transparent via-white/5 to-transparent" />
                   <div className="absolute right-8 top-1/2 -translate-y-1/2 w-6 h-24 rounded-full bg-white/5" />
                   <div className="absolute inset-4 border border-white/[0.03] rounded-sm" />
                 </div>
-                
-                {/* Right Door */}
                 <div 
                   className="absolute top-0 bottom-0 right-0 w-1/2 bg-gradient-to-l from-[#1a1a1a] via-[#252525] to-[#1f1f1f] border-l border-white/5 shadow-2xl"
                   style={{ 
@@ -1225,7 +1379,6 @@
                     transition: 'transform 1.2s cubic-bezier(0.4, 0, 0.2, 1)'
                   }}
                 >
-                  {/* Door panel details */}
                   <div className="absolute left-4 top-4 bottom-4 w-1 bg-gradient-to-b from-transparent via-white/5 to-transparent" />
                   <div className="absolute left-8 top-1/2 -translate-y-1/2 w-6 h-24 rounded-full bg-white/5" />
                   <div className="absolute inset-4 border border-white/[0.03] rounded-sm" />
@@ -1238,7 +1391,6 @@
                 {/* MOBILE / PORTRAIT LAYOUT */}
                 <div className="md:hidden flex flex-col h-full pointer-events-auto">
                   
-                  {/* Fullscreen Toggle (Top Right) */}
                   <div className="absolute top-6 right-6 z-50">
                     <button 
                       onClick={() => {
@@ -1253,7 +1405,6 @@
                     </button>
                   </div>
 
-                  {/* Top Section - Floor Indicator (HIDDEN IN LANDSCAPE to save space) */}
                   <div className="pt-8 pb-4 flex justify-center landscape:hidden">
                     <div className="relative">
                       <div className="w-20 h-10 bg-black/80 border border-amber-500/30 rounded-sm flex items-center justify-center shadow-[0_0_20px_rgba(251,191,36,0.2)]">
@@ -1263,43 +1414,29 @@
                     </div>
                   </div>
                   
-                  {/* Middle Section - Title & Elevator Visual */}
                   <div className="flex-1 flex flex-col items-center justify-center px-6 min-h-0 overflow-y-auto landscape:justify-center">
                     
-                    {/* Elevator Frame Visual (HIDDEN IN LANDSCAPE to save space) */}
                     <div className="relative mb-8 landscape:hidden" style={{ animationDelay: '0.3s' }}>
                       <div className="w-40 h-56 border-4 border-[#2a2a2a] rounded-t-lg bg-gradient-to-b from-[#1a1a1a] to-[#0f0f0f] shadow-[inset_0_0_30px_rgba(0,0,0,0.8)]">
-                        {/* Interior glow */}
                         <div className="absolute inset-2 bg-gradient-to-b from-amber-500/5 to-transparent rounded-t" />
-                        
-                        {/* Floor indicator inside */}
                         <div className="absolute top-3 left-1/2 -translate-x-1/2 w-16 h-6 bg-black rounded-sm border border-amber-500/20 flex items-center justify-center">
                           <span className="text-amber-400/80 text-sm font-mono">▲ 03</span>
                         </div>
-                        
-                        {/* Mini doors */}
                         <div className="absolute bottom-0 left-2 right-2 top-12 flex gap-0.5">
                           <div className="flex-1 bg-gradient-to-r from-[#333] to-[#2a2a2a] rounded-t-sm border-t border-l border-white/5" />
                           <div className="flex-1 bg-gradient-to-l from-[#333] to-[#2a2a2a] rounded-t-sm border-t border-r border-white/5" />
                         </div>
-                        
-                        {/* Button panel */}
                         <div className="absolute -right-6 top-1/2 -translate-y-1/2 w-4 h-20 bg-[#1a1a1a] rounded-r border border-white/5 flex flex-col items-center justify-center gap-2 py-2">
                           <div className="w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.8)]" />
                           <div className="w-2 h-2 rounded-full bg-white/20" />
                           <div className="w-2 h-2 rounded-full bg-white/20" />
                         </div>
                       </div>
-                      
-                      {/* Floor reflection */}
                       <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-48 h-4 bg-gradient-to-t from-transparent to-amber-500/10 blur-sm" />
                     </div>
                     
-                    {/* Title (Always Visible) */}
                     <div className="text-center mb-6 landscape:mb-4 flex-shrink-0">
                       <p className="text-amber-500/50 text-xs uppercase tracking-[0.5em] mb-2 font-light landscape:hidden">Bem-vindo ao</p>
-                      
-                      {/* Portrait Title */}
                       <div className="landscape:hidden">
                         <h1 className="text-5xl font-black text-white mb-1" style={{ textShadow: '0 0 40px rgba(255,255,255,0.1)' }}>
                           THE NORMAL
@@ -1308,8 +1445,6 @@
                           ELEVATOR
                         </h2>
                       </div>
-
-                      {/* Landscape Title - Single Line */}
                       <div className="hidden landscape:flex items-center justify-center gap-2">
                         <h1 className="text-3xl font-black text-white" style={{ textShadow: '0 0 20px rgba(255,255,255,0.1)' }}>
                           THE NORMAL
@@ -1320,22 +1455,17 @@
                       </div>
                     </div>
                     
-                    {/* Tagline - Hidden in landscape */}
                     <p className="text-white/30 text-center text-sm max-w-xs leading-relaxed landscape:hidden">
                       Uma experiência liminal interativa.<br/>
                       <span className="text-amber-500/40">Por favor, permaneça calmo.</span>
                     </p>
 
-                    {/* Landscape Button - Visible only in landscape, placed right under title */}
                     <div className="hidden landscape:block w-full max-w-xs mt-2">
                       <button 
                         onClick={onPlay}
                         className="group relative w-full overflow-hidden rounded-lg transition-all duration-500 active:scale-[0.98]"
                       >
-                        {/* Button glow */}
                         <div className="absolute -inset-1 bg-gradient-to-r from-amber-500/50 via-yellow-400/50 to-amber-500/50 rounded-lg blur-lg opacity-50 group-hover:opacity-100 transition-opacity duration-500" />
-                        
-                        {/* Button body */}
                         <div className="relative bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 rounded-lg">
                           <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
                           <div className="relative flex items-center justify-center gap-3 px-8 py-4 text-black font-bold text-base tracking-widest">
@@ -1350,16 +1480,12 @@
 
                   </div>
                   
-                  {/* Bottom Section - Play Button (STICKY) - Hidden in Landscape */}
                   <div className="p-6 pb-10 sticky bottom-0 bg-gradient-to-t from-black via-black/90 to-transparent z-40 landscape:hidden">
                     <button 
                       onClick={onPlay}
                       className="group relative w-full overflow-hidden rounded-lg transition-all duration-500 active:scale-[0.98]"
                     >
-                      {/* Button glow */}
                       <div className="absolute -inset-1 bg-gradient-to-r from-amber-500/50 via-yellow-400/50 to-amber-500/50 rounded-lg blur-lg opacity-50 group-hover:opacity-100 transition-opacity duration-500" />
-                      
-                      {/* Button body */}
                       <div className="relative bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 rounded-lg">
                         <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
                         <div className="relative flex items-center justify-center gap-3 px-8 py-5 text-black font-bold text-lg tracking-widest">
@@ -1370,8 +1496,6 @@
                         </div>
                       </div>
                     </button>
-                    
-                    {/* Control hints */}
                     <div className="flex justify-center gap-6 mt-4 text-white/20 text-xs">
                       <span className="flex items-center gap-2">
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11" /></svg>
@@ -1389,20 +1513,12 @@
                 <div className="hidden md:flex h-full items-center justify-center pointer-events-auto">
                   <div className="flex items-center gap-10 lg:gap-24 max-w-6xl mx-auto px-8">
                     
-                    {/* Left Side - Elevator Visual */}
                     <div className="relative animate-fade-in" style={{ animationDelay: '0.5s' }}>
-                      {/* Large elevator frame */}
                       <div className="w-64 h-96 border-8 border-[#2a2a2a] rounded-t-2xl bg-gradient-to-b from-[#1a1a1a] to-[#0a0a0a] shadow-[inset_0_0_60px_rgba(0,0,0,0.9),0_0_80px_rgba(0,0,0,0.5)]">
-                        
-                        {/* Interior ambient light */}
                         <div className="absolute inset-4 bg-gradient-to-b from-amber-500/10 via-transparent to-transparent rounded-t-xl" />
-                        
-                        {/* Floor display */}
                         <div className="absolute top-6 left-1/2 -translate-x-1/2 w-24 h-10 bg-black/90 rounded border border-amber-500/30 flex items-center justify-center shadow-[0_0_20px_rgba(251,191,36,0.3)]">
                           <span className="text-amber-400 text-2xl font-mono font-bold" style={{ textShadow: '0 0 15px rgba(251,191,36,0.8)' }}>▲ 03</span>
                         </div>
-                        
-                        {/* Elevator doors (inside frame) */}
                         <div className="absolute bottom-0 left-4 right-4 top-20 flex gap-1 overflow-hidden rounded-t">
                           <div className="flex-1 bg-gradient-to-r from-[#3a3a3a] via-[#404040] to-[#353535] border-t border-l border-white/10 shadow-inner">
                             <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-black/30 to-transparent" />
@@ -1412,12 +1528,8 @@
                             <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-black/30 to-transparent" />
                           </div>
                         </div>
-                        
-                        {/* Ceiling light reflection */}
                         <div className="absolute top-20 left-1/2 -translate-x-1/2 w-32 h-16 bg-gradient-to-b from-amber-400/20 to-transparent blur-xl" />
                       </div>
-                      
-                      {/* External call button panel */}
                       <div className="absolute -right-12 top-1/2 -translate-y-1/2 w-8 h-32 bg-[#1a1a1a] rounded-r-lg border border-white/5 flex flex-col items-center justify-center gap-3 shadow-xl">
                         <div className="w-5 h-5 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 shadow-[0_0_15px_rgba(251,191,36,1)] animate-pulse" />
                         <div className="w-5 h-5 rounded-full bg-white/10 border border-white/10" />
@@ -1426,25 +1538,16 @@
                           <div className="w-2 h-0.5 bg-white/20" />
                         </div>
                       </div>
-                      
-                      {/* Floor reflection */}
                       <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 w-80 h-8 bg-gradient-to-t from-transparent to-amber-500/10 blur-md" />
-                      
-                      {/* Frame edges */}
                       <div className="absolute -left-2 top-0 bottom-0 w-2 bg-gradient-to-r from-[#333] to-[#222] rounded-l" />
                       <div className="absolute -right-2 top-0 bottom-0 w-2 bg-gradient-to-l from-[#333] to-[#222] rounded-r" />
                     </div>
                     
-                    {/* Right Side - Content */}
                     <div className="flex-1 max-w-lg flex flex-col justify-center">
-                      
-                      {/* Floor badge */}
                       <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 border border-amber-500/20 rounded-full mb-4 animate-fade-in-up" style={{ animationDelay: '0.7s' }}>
                         <div className="w-2 h-2 bg-amber-400 rounded-full animate-pulse" />
                         <span className="text-amber-400/80 text-xs font-mono uppercase tracking-wider">Andar 03 • Saguão</span>
                       </div>
-                      
-                      {/* Title - Consolidated to Single Line */}
                       <div className="mb-6 animate-fade-in-up" style={{ animationDelay: '0.8s' }}>
                         <p className="text-amber-500/40 text-sm uppercase tracking-[0.5em] mb-2 font-light">Bem-vindo ao</p>
                         <h1 className="text-5xl lg:text-7xl font-black text-white leading-none mb-1" style={{ textShadow: '0 0 60px rgba(255,255,255,0.1)' }}>
@@ -1454,19 +1557,12 @@
                           ELEVATOR
                         </h2>
                       </div>
-                      
-                      {/* Description REMOVED */}
-                      
-                      {/* Play Button - Moved UP to replace text position */}
                       <div className="animate-fade-in-up mt-2" style={{ animationDelay: '1s' }}>
                         <button 
                           onClick={onPlay}
                           className="group relative overflow-hidden rounded-xl transition-all duration-500 hover:scale-[1.02] active:scale-[0.98]"
                         >
-                          {/* Animated border */}
                           <div className="absolute -inset-0.5 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 rounded-xl opacity-70 group-hover:opacity-100 blur-sm transition-opacity" />
-                          
-                          {/* Button body */}
                           <div className="relative bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 rounded-xl">
                             <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent rounded-xl" />
                             <div className="relative flex items-center gap-4 px-12 py-5 text-black font-bold text-xl">
@@ -1477,8 +1573,6 @@
                             </div>
                           </div>
                         </button>
-                        
-                        {/* Control hints */}
                         <div className="flex gap-8 mt-6 text-white/20 text-sm">
                           <span className="flex items-center gap-2">
                             <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-xs font-mono">WASD</kbd>
@@ -1499,7 +1593,6 @@
                   </div>
                 </div>
                 
-                {/* Corner UI Elements */}
                 <div className="absolute top-6 left-6 text-white/10 text-xs font-mono hidden md:flex items-center gap-2">
                   <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
                   SISTEMA ATIVO
@@ -1517,7 +1610,6 @@
                 
               </div>
               
-              {/* Scanlines overlay */}
               <div className="absolute inset-0 pointer-events-none opacity-[0.02]" style={{
                 backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.03) 2px, rgba(255,255,255,0.03) 4px)'
               }} />
@@ -1527,7 +1619,7 @@
       };
 
       const MAX_JOYSTICK_RADIUS = 50; 
-      const App = () => {
+      const GameApp = () => {
         const [hasStarted, setHasStarted] = useState(false);
         const [audioCtx, setAudioCtx] = useState(null);
         const [muted, setMuted] = useState(false);
@@ -1535,39 +1627,90 @@
         const prevPinchDist = useRef(null);
         const moveInput = useRef({ x: 0, y: 0 }); const lookInput = useRef({ x: 0, y: 0 });
         const sharedPlayerPositionRef = useRef(new Vector3(0, 0, 8)); 
-        const [elevatorTimer, setElevatorTimer] = useState(null); const [doorsClosed, setDoorsClosed] = useState(false);
-        const [currentLevel, setCurrentLevel] = useState(0); const [overlayOpacity, setOverlayOpacity] = useState(0);
-        const [houseDoorOpen, setHouseDoorOpen] = useState(false); const [canInteractDoor, setCanInteractDoor] = useState(false); const [doorSoundTrigger, setDoorSoundTrigger] = useState(0);
+        const [elevState, dispatchElev] = useReducer((state, action) => {
+            switch (action.type) {
+                case 'ENTER': return { ...state, timer: 5 };
+                case 'TICK': {
+                    if (state.timer === null || state.timer <= 0) return state;
+                    return { ...state, timer: state.timer - 1 };
+                }
+                case 'CLOSE_DOORS': return { ...state, doorsClosed: true, timer: 20, soundTrigger: state.soundTrigger + 1 };
+                case 'OPEN_DOORS': return { ...state, doorsClosed: false, timer: null, overlayOpacity: 0 };
+                case 'SET_OVERLAY': return { ...state, overlayOpacity: action.value };
+                case 'CHANGE_LEVEL': return { ...state, level: action.level };
+                default: return state;
+            }
+        }, {
+            timer: null, doorsClosed: false, level: 0, overlayOpacity: 0, soundTrigger: 0
+        });
+        const elevatorTimer = elevState.timer;
+        const doorsClosed = elevState.doorsClosed;
+        const currentLevel = elevState.level;
+        const overlayOpacity = elevState.overlayOpacity;
+        const doorSoundTriggerValue = elevState.soundTrigger;
+        const [houseDoorOpen, setHouseDoorOpen] = useState(false); const [canInteractDoor, setCanInteractDoor] = useState(false);
         const npcPositionRef = useRef(new Vector3(5, 0, 5)); const [canInteractNPC, setCanInteractNPC] = useState(false); const [dialogueOpen, setDialogueOpen] = useState(false); const [dialogueNode, setDialogueNode] = useState('start');
         
-        const handlePlayerEnterElevator = () => { if (elevatorTimer === null && !doorsClosed && currentLevel === 0) { setElevatorTimer(5); } };
+        const handlePlayerEnterElevator = () => { if (elevatorTimer === null && !doorsClosed) { dispatchElev({ type: 'ENTER' }); } };
         const handleInteractionUpdate = useCallback((canInteract) => { setCanInteractDoor(prev => { if (prev !== canInteract) return canInteract; return prev; }); }, []);
         const handleNpcInteractionUpdate = useCallback((canInteract) => { setCanInteractNPC(prev => { if (prev !== canInteract) return canInteract; return prev; }); }, []);
-        const handleOpenDoor = () => { setHouseDoorOpen(true); setCanInteractDoor(false); };
-        const handleStartDialogue = () => { setDialogueNode('start'); setDialogueOpen(true); setCanInteractNPC(false); };
+        const handleOpenDoor = () => { if (navigator.vibrate) navigator.vibrate(50); setHouseDoorOpen(true); setCanInteractDoor(false); };
+        const handleStartDialogue = () => { if (navigator.vibrate) navigator.vibrate(30); setDialogueNode('start'); setDialogueOpen(true); setCanInteractNPC(false); };
         const handleDialogueOption = (next) => { setDialogueNode(next); };
         const handleCloseDialogue = () => { setDialogueOpen(false); };
-        const handleStartGame = () => { const AudioContext = window.AudioContext || window.webkitAudioContext; const ctx = new AudioContext(); ctx.resume(); setAudioCtx(ctx); setHasStarted(true); if (typeof window !== 'undefined' && window.matchMedia("(min-width: 1024px)").matches) { document.body.requestPointerLock(); } };
+        const audioCtxRef = useRef(null);
+        const handleStartGame = () => {
+          if (!audioCtxRef.current) {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            const ctx = new AudioContext();
+            ctx.resume();
+            audioCtxRef.current = ctx;
+            setAudioCtx(ctx);
+          }
+          setHasStarted(true);
+          if (typeof window !== 'undefined' && window.matchMedia("(min-width: 1024px)").matches) { try { document.body.requestPointerLock(); } catch(e) {} }
+        };
+
+        // Cleanup AudioContext on unmount
+        useEffect(() => {
+          return () => {
+            if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
+              audioCtxRef.current.close().catch(() => {});
+              audioCtxRef.current = null;
+            }
+          };
+        }, []);
 
         useEffect(() => {
           let timerId;
           if (elevatorTimer !== null && elevatorTimer > 0) {
-              timerId = setTimeout(() => { setElevatorTimer(prev => (prev !== null ? prev - 1 : null)); }, 1000);
+              timerId = setTimeout(() => { dispatchElev({ type: 'TICK' }); }, 1000);
               if (doorsClosed) {
-                  if (elevatorTimer === 19) { setOverlayOpacity(1); }
-                  if (elevatorTimer === 18) { if (currentLevel === 0) { setCurrentLevel(1); } }
-                  if (elevatorTimer === 17) { setOverlayOpacity(0); }
+                  if (elevatorTimer === 19) { dispatchElev({ type: 'SET_OVERLAY', value: 1 }); }
+                  if (elevatorTimer === 18) {
+                      // Toggle between levels
+                      const nextLevel = currentLevel === 0 ? 1 : 0;
+                      dispatchElev({ type: 'CHANGE_LEVEL', level: nextLevel });
+                  }
+                  if (elevatorTimer === 17) { dispatchElev({ type: 'SET_OVERLAY', value: 0 }); }
               }
           } else if (elevatorTimer === 0) {
-              if (!doorsClosed) { setDoorsClosed(true); setElevatorTimer(20); setDoorSoundTrigger(prev => prev + 1); } 
-              else { setDoorsClosed(false); setElevatorTimer(null); setOverlayOpacity(0); }
+              if (!doorsClosed) { dispatchElev({ type: 'CLOSE_DOORS' }); } 
+              else { dispatchElev({ type: 'OPEN_DOORS' }); }
           }
           return () => clearTimeout(timerId);
         }, [elevatorTimer, doorsClosed, currentLevel]);
         
         const [joystickVisual, setJoystickVisual] = useState({ active: false, originX: 0, originY: 0, currentX: 0, currentY: 0 });
-        const isDesktop = typeof window !== 'undefined' && window.matchMedia("(min-width: 1024px)").matches;
+        const [isDesktop, setIsDesktop] = useState(() => typeof window !== 'undefined' && window.matchMedia("(min-width: 1024px)").matches);
         const activePointers = useRef(new Map());
+
+        useEffect(() => {
+          const mq = window.matchMedia("(min-width: 1024px)");
+          const handler = (e) => setIsDesktop(e.matches);
+          mq.addEventListener('change', handler);
+          return () => mq.removeEventListener('change', handler);
+        }, []);
 
         const handlePointerDown = (e) => {
           if (!hasStarted) return;
@@ -1608,7 +1751,7 @@
                   setJoystickVisual(prev => ({ ...prev, currentX: normX, currentY: normY }));
                 } else if (pointer.type === 'look') {
                   const deltaX = clientX - pointer.startX; const deltaY = clientY - pointer.startY;
-                  const SENSITIVITY = 0.006; lookInput.current.x += deltaX * SENSITIVITY; lookInput.current.y += deltaY * SENSITIVITY;
+                  lookInput.current.x += deltaX * TOUCH_LOOK_SENSITIVITY; lookInput.current.y += deltaY * TOUCH_LOOK_SENSITIVITY;
                   pointer.startX = clientX; pointer.startY = clientY;
                 }
             }
@@ -1643,7 +1786,7 @@
 
         return (
           <div className="w-full h-full relative overflow-hidden select-none" style={{ touchAction: 'none', backgroundColor: '#000000' }} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onPointerLeave={handlePointerUp} onWheel={handleWheel}>
-            <LiminalAudioEngine doorTrigger={doorSoundTrigger} audioContext={audioCtx} muted={muted} />
+            <LiminalAudioEngine doorTrigger={doorSoundTriggerValue} audioContext={audioCtx} muted={muted} />
             <div className="absolute inset-0 z-30 bg-black pointer-events-none transition-opacity duration-1000 ease-in-out" style={{ opacity: overlayOpacity }} />
             <Canvas shadows camera={{ fov: 75, near: 0.1, far: 100 }}>
               <Suspense fallback={<Html center><div className="text-white font-mono">Loading...</div></Html>}>
@@ -1651,7 +1794,7 @@
                   <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueOpen={dialogueOpen} sharedPositionRef={sharedPlayerPositionRef} />
               </Suspense>
             </Canvas>
-            <Loader />
+            <Loader containerStyles={{ background: '#050505' }} innerStyles={{ background: '#1a1a1a', width: '300px', height: '6px', borderRadius: '3px' }} barStyles={{ background: 'linear-gradient(90deg, #f59e0b, #fbbf24)', height: '100%', borderRadius: '3px' }} dataStyles={{ color: '#f59e0b', fontFamily: 'monospace', fontSize: '14px' }} dataInterpolation={(p) => `Carregando... ${p.toFixed(0)}%`} />
             {!hasStarted && <MainMenu onPlay={handleStartGame} />}
             {hasStarted && ( <div className="absolute top-4 right-4 z-50 flex gap-4"><button onClick={() => setMuted(!muted)} className="text-white bg-black/50 p-2 rounded-full hover:bg-white/20 transition-colors pointer-events-auto">{muted ? (<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8"><path strokeLinecap="round" strokeLinejoin="round" d="M17.25 9.75 19.5 12m0 0 2.25 2.25M19.5 12l2.25-2.25M19.5 12l-2.25 2.25m-10.5-6 4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" /></svg>) : (<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8"><path strokeLinecap="round" strokeLinejoin="round" d="M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" /></svg>)}</button></div> )}
             {hasStarted && !isDesktop && !dialogueOpen && ( <><VisualJoystick active={joystickVisual.active} x={joystickVisual.currentX} y={joystickVisual.currentY} origin={{ x: joystickVisual.originX, y: joystickVisual.originY }} /><div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 w-full text-center px-4 text-white/50 text-sm font-mono pointer-events-none no-select">Left: Drag to Move • Right: Drag to Look</div></> )}
@@ -1665,7 +1808,7 @@
       const rootElement = document.getElementById('root');
       if (!rootElement) { throw new Error("Could not find root element to mount to"); }
       const root = ReactDOM.createRoot(rootElement);
-      root.render( <React.StrictMode> <App /> </React.StrictMode> );
+      root.render( <React.StrictMode> <GameApp /> </React.StrictMode> );
     </script>
   </body>
 </html>
