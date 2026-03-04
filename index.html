@@ -170,8 +170,8 @@
   }
 }
 </script>
-    <!-- Babel -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Babel (async to avoid blocking first paint) -->
+    <script async src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   </head>
   <body>
     <div id="root"></div>
@@ -702,7 +702,7 @@
           const leftDoorRef = useRef(null); const rightDoorRef = useRef(null);
           useFrame((state, delta) => {
               if (!leftDoorRef.current || !rightDoorRef.current) return;
-              const speed = 5.0 * delta; const targetLeft = closed ? -0.76 : -2.3; const targetRight = closed ? 0.76 : 2.3;
+              const speed = Math.min(5.0 * delta, 1.0); const targetLeft = closed ? -0.76 : -2.3; const targetRight = closed ? 0.76 : 2.3;
               const lx = leftDoorRef.current.position.x; const rx = rightDoorRef.current.position.x;
               if (Math.abs(lx - targetLeft) < 0.001 && Math.abs(rx - targetRight) < 0.001) return;
               leftDoorRef.current.position.x = THREE.MathUtils.lerp(lx, targetLeft, speed);
@@ -1101,9 +1101,10 @@
 
       function applyLobbyCollision(nextX, nextZ, wallBuffer) {
           const maxX = (ROOM_WIDTH / 2) - wallBuffer;
+          const maxZ = (ROOM_LENGTH / 2) - wallBuffer;
           return {
               x: Math.max(-maxX, Math.min(maxX, nextX)),
-              z: Math.min((ROOM_LENGTH / 2) - wallBuffer, nextZ)
+              z: Math.max(-(ROOM_LENGTH / 2) + wallBuffer, Math.min(maxZ, nextZ))
           };
       }
 
@@ -1252,6 +1253,8 @@
         })), []);
         
         useEffect(() => {
+          let flickerResetTimer = null;
+
           const doorTimer = setTimeout(() => {
             setDoorPosition(100);
           }, 500);
@@ -1263,7 +1266,7 @@
           const flickerInterval = setInterval(() => {
             if (Math.random() > 0.95) {
               setFlickerOpacity(0.7);
-              setTimeout(() => setFlickerOpacity(1), 100);
+              flickerResetTimer = setTimeout(() => setFlickerOpacity(1), 100);
             }
           }, 200);
           
@@ -1271,6 +1274,7 @@
             clearTimeout(doorTimer);
             clearTimeout(contentTimer);
             clearInterval(flickerInterval);
+            if (flickerResetTimer) clearTimeout(flickerResetTimer);
           };
         }, []);
         
@@ -1579,7 +1583,28 @@
         const handleStartDialogue = () => { if (navigator.vibrate) navigator.vibrate(30); setDialogueNode('start'); setDialogueOpen(true); setCanInteractNPC(false); };
         const handleDialogueOption = (next) => { setDialogueNode(next); };
         const handleCloseDialogue = () => { setDialogueOpen(false); };
-        const handleStartGame = () => { const AudioContext = window.AudioContext || window.webkitAudioContext; const ctx = new AudioContext(); ctx.resume(); setAudioCtx(ctx); setHasStarted(true); if (typeof window !== 'undefined' && window.matchMedia("(min-width: 1024px)").matches) { try { document.body.requestPointerLock(); } catch(e) {} } };
+        const audioCtxRef = useRef(null);
+        const handleStartGame = () => {
+          if (!audioCtxRef.current) {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            const ctx = new AudioContext();
+            ctx.resume();
+            audioCtxRef.current = ctx;
+            setAudioCtx(ctx);
+          }
+          setHasStarted(true);
+          if (typeof window !== 'undefined' && window.matchMedia("(min-width: 1024px)").matches) { try { document.body.requestPointerLock(); } catch(e) {} }
+        };
+
+        // Cleanup AudioContext on unmount
+        useEffect(() => {
+          return () => {
+            if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
+              audioCtxRef.current.close().catch(() => {});
+              audioCtxRef.current = null;
+            }
+          };
+        }, []);
 
         useEffect(() => {
           let timerId;
