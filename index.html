@@ -1,0 +1,1671 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>The Normal Elevator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      body { margin: 0; padding: 0; overflow: hidden; background-color: #050505; touch-action: none; overscroll-behavior: none; }
+      #root { width: 100vw; height: 100vh; }
+      .no-select { user-select: none; -webkit-user-select: none; }
+      
+      /* Menu Animations */
+      @keyframes fade-in {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      .animate-fade-in {
+        animation: fade-in 0.8s ease-out forwards;
+      }
+
+      @keyframes fade-in-up {
+        from { opacity: 0; transform: translateY(30px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      .animate-fade-in-up {
+        animation: fade-in-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      }
+      
+      @keyframes slide-in-right {
+        from { opacity: 0; transform: translateX(40px); }
+        to { opacity: 1; transform: translateX(0); }
+      }
+      .animate-slide-in-right {
+        animation: slide-in-right 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      }
+      
+      @keyframes slide-in-left {
+        from { opacity: 0; transform: translateX(-40px); }
+        to { opacity: 1; transform: translateX(0); }
+      }
+      .animate-slide-in-left {
+        animation: slide-in-left 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      }
+      
+      @keyframes scale-in {
+        from { opacity: 0; transform: scale(0.9); }
+        to { opacity: 1; transform: scale(1); }
+      }
+      .animate-scale-in {
+        animation: scale-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      }
+      
+      /* Staggered animation delays */
+      .stagger-1 { animation-delay: 0.05s; opacity: 0; }
+      .stagger-2 { animation-delay: 0.1s; opacity: 0; }
+      .stagger-3 { animation-delay: 0.15s; opacity: 0; }
+      .stagger-4 { animation-delay: 0.2s; opacity: 0; }
+      .stagger-5 { animation-delay: 0.25s; opacity: 0; }
+      
+      /* Typewriter effect */
+      @keyframes typewriter {
+        from { width: 0; }
+        to { width: 100%; }
+      }
+      
+      @keyframes blink-caret {
+        from, to { border-color: transparent; }
+        50% { border-color: #fbbf24; }
+      }
+      
+      /* Glowing border animation */
+      @keyframes glow-pulse {
+        0%, 100% { box-shadow: 0 0 20px rgba(251, 191, 36, 0.3); }
+        50% { box-shadow: 0 0 40px rgba(251, 191, 36, 0.6); }
+      }
+      .glow-pulse {
+        animation: glow-pulse 2s ease-in-out infinite;
+      }
+      
+      /* Floating animation */
+      @keyframes float {
+        0%, 100% { transform: translateY(0px); }
+        50% { transform: translateY(-10px); }
+      }
+      .animate-float {
+        animation: float 3s ease-in-out infinite;
+      }
+      
+      /* Glitch effect for menu */
+      @keyframes glitch {
+        0%, 90%, 100% { transform: translate(0); }
+        92% { transform: translate(-2px, 2px); }
+        94% { transform: translate(2px, -2px); }
+        96% { transform: translate(-2px, -2px); }
+        98% { transform: translate(2px, 2px); }
+      }
+      .glitch-hover:hover {
+        animation: glitch 0.3s ease-in-out;
+      }
+      
+      /* Shimmer effect */
+      @keyframes shimmer {
+        0% { background-position: -200% 0; }
+        100% { background-position: 200% 0; }
+      }
+      .shimmer {
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+        background-size: 200% 100%;
+        animation: shimmer 2s infinite;
+      }
+      
+      /* Speech Bubble Animation */
+      @keyframes pop-in {
+        0% { transform: scale(0); opacity: 0; }
+        80% { transform: scale(1.1); opacity: 1; }
+        100% { transform: scale(1); opacity: 1; }
+      }
+      .speech-bubble {
+        animation: pop-in 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+      }
+
+      /* Range Slider Styling */
+      input[type=range] {
+        -webkit-appearance: none; 
+        background: transparent; 
+      }
+      input[type=range]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        height: 16px;
+        width: 16px;
+        border-radius: 50%;
+        background: #ffffff;
+        cursor: pointer;
+        margin-top: -6px; 
+      }
+      input[type=range]::-webkit-slider-runnable-track {
+        width: 100%;
+        height: 4px;
+        cursor: pointer;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 2px;
+      }
+      
+      /* Custom scrollbar for dialogue */
+      .dialogue-scroll::-webkit-scrollbar {
+        width: 4px;
+      }
+      .dialogue-scroll::-webkit-scrollbar-track {
+        background: rgba(255,255,255,0.1);
+        border-radius: 2px;
+      }
+      .dialogue-scroll::-webkit-scrollbar-thumb {
+        background: rgba(251, 191, 36, 0.5);
+        border-radius: 2px;
+      }
+    </style>
+    <!-- Import Map -->
+    <script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@18.3.1",
+    "react/": "https://esm.sh/react@18.3.1/",
+    "react-dom": "https://esm.sh/react-dom@18.3.1?deps=react@18.3.1",
+    "react-dom/client": "https://esm.sh/react-dom@18.3.1/client?deps=react@18.3.1",
+    "three": "https://esm.sh/three@0.165.0",
+    "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.16.8?deps=three@0.165.0,react@18.3.1,react-dom@18.3.1",
+    "@react-three/drei": "https://esm.sh/@react-three/drei@9.108.0?deps=three@0.165.0,react@18.3.1,react-dom@18.3.1,@react-three/fiber@8.16.8",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/"
+  }
+}
+</script>
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <script type="text/babel" data-type="module" data-presets="react,typescript">
+      import React, { useState, useEffect, useRef, useCallback, Suspense, useMemo } from 'react';
+      import ReactDOM from 'react-dom/client';
+      import { Canvas, useThree, useFrame, createPortal } from '@react-three/fiber';
+      import { Html, Loader, Text, useTexture, useGLTF, useAnimations } from '@react-three/drei';
+      import * as THREE from 'three';
+      import { Vector3, Euler, Quaternion, Matrix4 } from 'three';
+
+      // --- ASSETS & CONFIG ---
+      
+      const WALKING_URL = "https://raw.githubusercontent.com/Felipe9272727/Bancon...../main/Walking(1).glb";
+      const IDLE_URL = "https://raw.githubusercontent.com/Felipe9272727/BACON-PROJETO-FUNCIONALLLLL/main/Idle.glb";
+
+      // NPC Assets
+      const NPC_WALK_URL = "https://raw.githubusercontent.com/Felipe9272727/Npc-test/main/npc%20walking.glb";
+      const NPC_IDLE_URL = "https://raw.githubusercontent.com/Felipe9272727/Npc-test/main/npc%20idle.glb";
+
+      // Preload assets
+      useGLTF.preload(WALKING_URL);
+      useGLTF.preload(IDLE_URL);
+      useGLTF.preload(NPC_WALK_URL);
+      useGLTF.preload(NPC_IDLE_URL);
+
+      // --- DIALOGUE DATA (PORTUGUESE) ---
+      
+      const DIALOGUE_TREE = {
+        "start": {
+          "text": "Bem-vindo. Eu sou o Supervisor do Saguão. Este é um elevador normal. Por favor, aja com naturalidade.",
+          "options": [
+            { "text": "Para onde esse elevador vai?", "next": "destiny" },
+            { "text": "Quantos andares existem?", "next": "floors" },
+            { "text": "Isso é seguro?", "next": "safety" },
+            { "text": "[Sair]", "next": null }
+          ]
+        },
+        "destiny": {
+          "text": "Ele vai exatamente para onde você espera. Ou para o andar logo depois do fim.",
+          "options": [
+            { "text": "O que você quer dizer com isso?", "next": "meaning" },
+            { "text": "Existe um andar que não deveria existir?", "next": "forbidden" },
+            { "text": "Prefiro não saber.", "next": "ignorance" }
+          ]
+        },
+        "floors": {
+          "text": "Existem os andares necessários. Alguns aparecem apenas quando são lembrados com força suficiente.",
+          "options": [
+            { "text": "Como assim, lembrados?", "next": "memory" },
+            { "text": "Posso escolher qualquer um?", "next": "choice" },
+            { "text": "Isso não parece normal.", "next": "abnormal" }
+          ]
+        },
+        "safety": {
+          "text": "A maioria das pessoas chega inteira. As partes que sobram também são bem tratadas.",
+          "options": [
+            { "text": "O que você fez com os outros?", "next": "others" },
+            { "text": "Quero sair agora.", "next": "exit_demand" },
+            { "text": "Você está brincando comigo?", "next": "joke" }
+          ]
+        },
+        "meaning": {
+          "text": "Significado é como fumaça neste poço. Concentre-se apenas em subir. E descer. E expandir.",
+          "options": [{ "text": "Voltar", "next": "start" }]
+        },
+        "forbidden": {
+          "text": "Se não deveria existir, não podemos falar sobre ele. As paredes têm ouvidos. E bocas.",
+          "options": [{ "text": "...", "next": "start" }]
+        },
+        "ignorance": {
+          "text": "Uma escolha sábia. A ignorância é um colete salva-vidas aqui.",
+          "options": [{ "text": "Voltar", "next": "start" }]
+        },
+        "memory": {
+          "text": "Memórias são tijolos. Se você esquecer o chão, ele pode deixar de te segurar.",
+          "options": [{ "text": "Entendi...", "next": "start" }]
+        },
+        "choice": {
+          "text": "Você pode apertar qualquer botão. Se o botão aceitará seu toque, é outra questão.",
+          "options": [{ "text": "Certo.", "next": "start" }]
+        },
+        "abnormal": {
+          "text": "Normal é apenas uma média estatística. Você está fora da curva agora.",
+          "options": [{ "text": "Voltar", "next": "start" }]
+        },
+        "others": {
+          "text": "Eles estão por aí. Às vezes nas paredes, às vezes no som do vento nos dutos.",
+          "options": [{ "text": "Credo.", "next": "start" }]
+        },
+        "exit_demand": {
+          "text": "A saída é uma porta. Mas nem todas as portas levam para fora.",
+          "options": [{ "text": "...", "next": "start" }]
+        },
+        "joke": {
+          "text": "Eu não tenho senso de humor. Fui fabricado sem ele.",
+          "options": [{ "text": "Ah.", "next": "start" }]
+        }
+      };
+
+      // --- AUDIO ENGINE ---
+      const LiminalAudioEngine = ({ doorTrigger, audioContext, muted }) => {
+        const lobbyReadyRef = useRef(false);
+        const masterGainRef = useRef(null);
+        const lobbyGainRef = useRef(null);
+        const schedulerTimerRef = useRef(null);
+        const sourceRef = useRef(null);
+        const tracksRef = useRef({
+            lobby: { active: true, volume: 1.0, nextNoteTime: 0, beatCount: 0 },
+            elevator: { active: false, volume: 0.0, nextNoteTime: 0, beatCount: 0 }
+        });
+        const crossfadeRef = useRef({ active: false, startTime: 0, duration: 3.0, from: 'lobby', to: 'elevator' });
+
+        const setupReverb = (ctx, destination) => {
+            const convolver = ctx.createConvolver();
+            const length = ctx.sampleRate * 1.5;
+            const impulse = ctx.createBuffer(2, length, ctx.sampleRate);
+            for (let i = 0; i < length; i++) {
+                const n = i / length;
+                const env = Math.pow(1 - n, 3.0);
+                impulse.getChannelData(0)[i] = (Math.random() * 2 - 1) * env;
+                impulse.getChannelData(1)[i] = (Math.random() * 2 - 1) * env;
+            }
+            convolver.buffer = impulse;
+            const wetGain = ctx.createGain(); wetGain.gain.value = 0.08;
+            const dryGain = ctx.createGain(); dryGain.gain.value = 1.0; 
+            const input = ctx.createGain();
+            input.connect(convolver); convolver.connect(wetGain); input.connect(dryGain);
+            wetGain.connect(destination); dryGain.connect(destination);
+            return input;
+        };
+
+        const playBrush = (ctx, dest, time, accent, vol = 1.0) => {
+            const bufferSize = ctx.sampleRate * 0.05;
+            const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1);
+            const noise = ctx.createBufferSource(); noise.buffer = buffer;
+            const filter = ctx.createBiquadFilter(); filter.type = 'bandpass'; filter.frequency.value = accent ? 3000 : 2000;
+            const gain = ctx.createGain(); gain.gain.setValueAtTime((accent ? 0.08 : 0.03) * vol, time); gain.gain.exponentialRampToValueAtTime(0.001, time + 0.04);
+            noise.connect(filter); filter.connect(gain); gain.connect(dest); noise.start(time);
+        };
+
+        const playBass = (ctx, dest, time, freq, duration, vol = 1.0) => {
+            if (!Number.isFinite(freq)) return;
+            const osc = ctx.createOscillator(); osc.type = 'sine'; osc.frequency.setValueAtTime(freq, time);
+            const gain = ctx.createGain(); gain.gain.setValueAtTime(0, time); gain.gain.linearRampToValueAtTime(0.3 * vol, time + 0.02); gain.gain.exponentialRampToValueAtTime(0.01, time + duration);
+            osc.connect(gain); gain.connect(dest); osc.start(time); osc.stop(time + duration + 0.1);
+        };
+
+        const playCheesyOrgan = (ctx, dest, time, freq, duration, vol = 1.0) => {
+            if (!Number.isFinite(freq)) return;
+            const osc = ctx.createOscillator(); osc.type = 'sine'; osc.frequency.setValueAtTime(freq, time);
+            const gain = ctx.createGain(); gain.gain.setValueAtTime(0, time); gain.gain.linearRampToValueAtTime(0.12 * vol, time + 0.05); gain.gain.setValueAtTime(0.12 * vol, time + duration - 0.05); gain.gain.linearRampToValueAtTime(0, time + duration);
+            osc.connect(gain); gain.connect(dest); osc.start(time); osc.stop(time + duration);
+        };
+
+        const playCheesyStrings = (ctx, dest, time, freq, duration, vol = 1.0) => {
+            if (!Number.isFinite(freq)) return;
+            const osc = ctx.createOscillator(); osc.type = 'sawtooth'; osc.frequency.setValueAtTime(freq, time);
+            const filter = ctx.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.value = 600; 
+            const gain = ctx.createGain(); gain.gain.setValueAtTime(0, time); gain.gain.linearRampToValueAtTime(0.04 * vol, time + 0.5); gain.gain.setValueAtTime(0.04 * vol, time + duration - 0.5); gain.gain.linearRampToValueAtTime(0, time + duration);
+            osc.connect(filter); filter.connect(gain); gain.connect(dest); osc.start(time); osc.stop(time + duration);
+        };
+
+        const playDoorCloseSound = (ctx, dest) => {
+            const t = ctx.currentTime;
+            const dingOsc = ctx.createOscillator(); dingOsc.frequency.setValueAtTime(784, t);
+            const dingGain = ctx.createGain(); dingGain.gain.setValueAtTime(0.1, t); dingGain.gain.exponentialRampToValueAtTime(0.001, t + 2.0);
+            dingOsc.connect(dingGain); dingGain.connect(dest); dingOsc.start(t); dingOsc.stop(t + 2.0);
+            const motorOsc = ctx.createOscillator(); motorOsc.type = 'sawtooth'; motorOsc.frequency.setValueAtTime(50, t + 0.2); motorOsc.frequency.linearRampToValueAtTime(40, t + 1.2);
+            const motorGain = ctx.createGain(); motorGain.gain.setValueAtTime(0, t + 0.2); motorGain.gain.linearRampToValueAtTime(0.05, t + 0.3); motorGain.gain.linearRampToValueAtTime(0, t + 1.2);
+            const motorFilter = ctx.createBiquadFilter(); motorFilter.type = 'lowpass'; motorFilter.frequency.value = 200;
+            motorOsc.connect(motorFilter); motorFilter.connect(motorGain); motorGain.connect(dest); motorOsc.start(t + 0.2); motorOsc.stop(t + 1.2);
+            const thudOsc = ctx.createOscillator(); thudOsc.type = 'sine'; thudOsc.frequency.setValueAtTime(60, t + 1.1); thudOsc.frequency.exponentialRampToValueAtTime(20, t + 1.3);
+            const thudGain = ctx.createGain(); thudGain.gain.setValueAtTime(0, t + 1.1); thudGain.gain.linearRampToValueAtTime(0.2, t + 1.15); thudGain.gain.exponentialRampToValueAtTime(0.001, t + 1.4);
+            thudOsc.connect(thudGain); thudGain.connect(dest); thudOsc.start(t + 1.1); thudOsc.stop(t + 1.4);
+        };
+        
+        useEffect(() => {
+            if (masterGainRef.current && audioContext) masterGainRef.current.gain.setTargetAtTime(muted ? 0 : 1, audioContext.currentTime, 0.1);
+        }, [muted, audioContext]);
+
+        useEffect(() => {
+           if (doorTrigger > 0 && audioContext && masterGainRef.current) {
+               playDoorCloseSound(audioContext, masterGainRef.current);
+               const now = audioContext.currentTime;
+               crossfadeRef.current = { active: true, startTime: now, duration: 3.0, from: 'lobby', to: 'elevator' };
+               tracksRef.current.elevator.active = true; tracksRef.current.elevator.volume = 0; tracksRef.current.elevator.nextNoteTime = now; tracksRef.current.elevator.beatCount = 0;
+           }
+        }, [doorTrigger, audioContext]);
+
+        const N = { 'C2': 65.41, 'A2': 110.00, 'D2': 73.42, 'G2': 98.00, 'E3': 164.81, 'G3': 196.00, 'B3': 246.94, 'Db4': 277.18, 'E4': 329.63, 'G4': 392.00, 'F3': 174.61, 'A3': 220.00, 'C4': 261.63, 'D4': 293.66, 'F4': 349.23 };
+        const ELEVATOR_PROGRESSION = [ { root: N.C2, chord: [N.E3, N.G3, N.B3], bass: [N.C2, 82.41, 98.00, 110.00] }, { root: N.A2, chord: [N.Db4, N.E4, N.G4], bass: [N.A2, 138.59, 164.81, 196.00] }, { root: N.D2, chord: [N.F3, N.A3, N.C4], bass: [N.D2, 87.31, 110.00, 130.81] }, { root: N.G2, chord: [N.B3, N.D4, N.F4], bass: [N.G2, 123.47, 146.83, 174.61] } ];
+        const melodyMap = [ {0: N.E4, 4: N.G4, 8: N.E4, 12: N.G4}, {0: N.E4, 4: N.G4, 8: N.E4, 12: N.Db4}, {0: N.F4, 4: N.A4, 8: N.F4, 12: N.A4}, {0: N.F4, 4: N.A4, 8: N.F4, 12: N.D4} ];
+
+        const scheduleElevatorClassic = (ctx, dest, beatNumber, time, vol) => {
+            const beatVal = 60 / 72; const effectiveVol = vol * 0.6;
+            const loopTick = beatNumber % 64; const barIndex = Math.floor(loopTick / 16); const tickInBar = loopTick % 16;
+            const harmony = ELEVATOR_PROGRESSION[barIndex];
+            if (tickInBar % 4 === 0) playBass(ctx, dest, time, harmony.bass[tickInBar / 4], beatVal * 1.2, effectiveVol);
+            if (tickInBar === 0) harmony.chord.forEach((n) => playCheesyStrings(ctx, dest, time, n, beatVal * 4, effectiveVol * 0.5));
+            const note = melodyMap[barIndex]?.[tickInBar];
+            if (note) playCheesyOrgan(ctx, dest, time, note, beatVal * 0.8, effectiveVol);
+            if ([0,3,6,8,12].includes(tickInBar)) playBrush(ctx, dest, time, tickInBar === 0, effectiveVol * 0.3);
+        };
+
+        const scheduler = useCallback(() => {
+            const ctx = audioContext; if (!ctx) return;
+            const dest = masterGainRef.current; if (!dest) return;
+            const now = ctx.currentTime; const lookahead = 0.1;
+
+            if (crossfadeRef.current.active) {
+                 const { startTime, duration, from, to } = crossfadeRef.current;
+                 const elapsed = now - startTime;
+                 if (elapsed >= duration) { tracksRef.current[from].active = false; tracksRef.current[from].volume = 0; tracksRef.current[to].volume = 1; crossfadeRef.current.active = false; }
+                 else { const t = elapsed / duration; tracksRef.current[from].volume = 1 - t; tracksRef.current[to].volume = t; }
+            }
+            if (lobbyGainRef.current) lobbyGainRef.current.gain.setTargetAtTime(tracksRef.current.lobby.volume, now, 0.05);
+            const elevatorTrack = tracksRef.current.elevator;
+            if (elevatorTrack.active) {
+                const beatDuration = 60 / 72; const sixteenthTime = beatDuration / 4;
+                while (elevatorTrack.nextNoteTime < now + lookahead) {
+                     if (elevatorTrack.volume > 0.01) scheduleElevatorClassic(ctx, dest, elevatorTrack.beatCount, elevatorTrack.nextNoteTime, elevatorTrack.volume);
+                     elevatorTrack.nextNoteTime += sixteenthTime; elevatorTrack.beatCount++;
+                }
+            }
+        }, [audioContext]);
+
+        useEffect(() => {
+            if (!audioContext) return;
+            const ctx = audioContext;
+            const compressor = ctx.createDynamicsCompressor(); compressor.threshold.value = -12; compressor.ratio.value = 4;
+            const makeupGain = ctx.createGain(); makeupGain.gain.value = 3.0; 
+            compressor.connect(makeupGain); makeupGain.connect(ctx.destination);
+            const reverbInput = setupReverb(ctx, compressor);
+            masterGainRef.current = reverbInput;
+            const lobbyGain = ctx.createGain(); lobbyGain.gain.value = 1.0; lobbyGain.connect(reverbInput); lobbyGainRef.current = lobbyGain;
+
+            let isMounted = true;
+            fetch('https://raw.githubusercontent.com/Felipe9272727/M-sica-pro-meu-jogo/main/Lobby%20Time(MP3_160K).mp3')
+                .then(r => r.arrayBuffer()).then(b => ctx.decodeAudioData(b)).then(audioBuf => {
+                    if (!isMounted) return;
+                    const source = ctx.createBufferSource(); source.buffer = audioBuf; source.loop = true; source.connect(lobbyGain); source.start(0); sourceRef.current = source; lobbyReadyRef.current = true;
+                }).catch(e => console.error("Error loading lobby music:", e));
+
+            schedulerTimerRef.current = setInterval(scheduler, 25);
+            return () => {
+                isMounted = false;
+                if (schedulerTimerRef.current) clearInterval(schedulerTimerRef.current);
+                if (sourceRef.current) { try { sourceRef.current.stop(); } catch(e) {} sourceRef.current.disconnect(); }
+                lobbyGain.disconnect(); reverbInput.disconnect(); compressor.disconnect(); makeupGain.disconnect();
+                masterGainRef.current = null; lobbyGainRef.current = null;
+            };
+        }, [audioContext, scheduler]);
+        return null;
+      };
+
+      // --- VISUAL JOYSTICK ---
+      const VisualJoystick = ({ x, y, active, origin }) => {
+        if (!active || !origin) return null;
+        const maxRadius = 40; const px = x * maxRadius; const py = y * maxRadius;
+        return (
+          <div className="absolute pointer-events-none z-50" style={{ left: origin.x, top: origin.y, transform: 'translate(-50%, -50%)' }}>
+            <div className="w-32 h-32 rounded-full bg-white/10 border-2 border-white/20 backdrop-blur-sm flex items-center justify-center">
+              <div className="w-12 h-12 bg-white/80 rounded-full shadow-[0_0_15px_rgba(255,255,255,0.5)]" style={{ transform: `translate(${px}px, ${py}px)` }} />
+            </div>
+          </div>
+        );
+      };
+      
+      // --- NEW DIALOGUE UI COMPONENT ---
+      
+      const TypewriterText = ({ text, speed = 30 }) => {
+        const [displayedText, setDisplayedText] = useState('');
+        const [isComplete, setIsComplete] = useState(false);
+        
+        useEffect(() => {
+          setDisplayedText('');
+          setIsComplete(false);
+          let index = 0;
+          const timer = setInterval(() => {
+            if (index < text.length) {
+              setDisplayedText(text.substring(0, index + 1));
+              index++;
+            } else {
+              setIsComplete(true);
+              clearInterval(timer);
+            }
+          }, speed);
+          return () => clearInterval(timer);
+        }, [text, speed]);
+        
+        return (
+          <span>
+            {displayedText}
+            {!isComplete && <span className="inline-block w-0.5 h-5 md:h-7 bg-yellow-400 ml-1 animate-pulse" />}
+          </span>
+        );
+      };
+
+      const DialogueOverlay = ({ nodeKey, onOptionSelect, onClose }) => {
+        const node = DIALOGUE_TREE[nodeKey];
+        const [showOptions, setShowOptions] = useState(false);
+        
+        useEffect(() => {
+          setShowOptions(false);
+          const timer = setTimeout(() => setShowOptions(true), 800);
+          return () => clearTimeout(timer);
+        }, [nodeKey]);
+        
+        if (!node) return null;
+
+        return (
+          <div className="fixed inset-0 z-50 pointer-events-none">
+            {/* Cinematic letterbox bars */}
+            <div className="absolute top-0 left-0 right-0 h-12 md:h-16 bg-gradient-to-b from-black to-transparent pointer-events-none" />
+            <div className="absolute bottom-0 left-0 right-0 h-12 md:h-16 bg-gradient-to-t from-black to-transparent pointer-events-none" />
+            
+            {/* PORTRAIT LAYOUT (Mobile) */}
+            <div className="flex md:hidden flex-col h-full justify-end pb-4 px-3">
+              
+              {/* Options Panel - Top Section on Mobile */}
+              <div className={`flex flex-col gap-2 mb-3 pointer-events-auto transition-all duration-500 ${showOptions ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+                {node.options.map((opt, i) => (
+                  <button 
+                    key={i}
+                    onClick={() => opt.next ? onOptionSelect(opt.next) : onClose()}
+                    style={{ animationDelay: `${i * 0.08}s` }}
+                    className={`group relative w-full text-left overflow-hidden animate-fade-in-up stagger-${i + 1}`}
+                  >
+                    <div className="relative px-4 py-3 bg-gradient-to-r from-gray-900/95 to-gray-800/90 backdrop-blur-xl border border-white/10 rounded-xl transition-all duration-300 hover:border-yellow-500/50 hover:shadow-[0_0_20px_rgba(251,191,36,0.2)] active:scale-[0.98]">
+                      <div className="flex items-center gap-3">
+                        <div className="flex-shrink-0 w-6 h-6 rounded-full bg-yellow-500/20 border border-yellow-500/40 flex items-center justify-center text-yellow-400 text-xs font-bold group-hover:bg-yellow-500 group-hover:text-black transition-all">
+                          {i + 1}
+                        </div>
+                        <span className="text-gray-200 group-hover:text-white font-medium text-sm flex-1">{opt.text}</span>
+                        <svg className="w-4 h-4 text-yellow-400 opacity-0 group-hover:opacity-100 transform translate-x-2 group-hover:translate-x-0 transition-all" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              {/* Main Dialogue Box - Bottom on Mobile */}
+              <div className="pointer-events-auto animate-scale-in">
+                <div className="relative bg-gradient-to-br from-gray-900/98 via-gray-900/95 to-black/98 backdrop-blur-2xl rounded-2xl border border-white/10 shadow-[0_-10px_60px_rgba(0,0,0,0.8)] overflow-hidden">
+                  
+                  {/* Decorative top accent line */}
+                  <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-yellow-500 to-transparent opacity-60" />
+                  
+                  {/* Header with Avatar */}
+                  <div className="flex items-center gap-3 p-4 pb-2 border-b border-white/5">
+                    <div className="relative">
+                      <div className="h-12 w-12 rounded-full bg-gradient-to-br from-yellow-400 via-yellow-500 to-amber-600 p-0.5 glow-pulse">
+                        <div className="w-full h-full rounded-full bg-gray-900 flex items-center justify-center">
+                          <span className="text-yellow-400 font-black text-lg">S</span>
+                        </div>
+                      </div>
+                      <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-gray-900" />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-yellow-500/80 font-semibold uppercase tracking-[0.2em] text-[10px]">Conversando com</span>
+                      <span className="text-white font-bold text-base">Supervisor do Saguão</span>
+                    </div>
+                  </div>
+                  
+                  {/* Dialogue Text */}
+                  <div className="p-4 pt-3 min-h-[100px] max-h-[140px] overflow-y-auto dialogue-scroll">
+                    <p className="text-gray-100 text-base leading-relaxed font-light">
+                      <span className="text-yellow-400 text-xl mr-1">"</span>
+                      <TypewriterText text={node.text} speed={25} />
+                      <span className="text-yellow-400 text-xl ml-1">"</span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* LANDSCAPE LAYOUT (Desktop/Tablet) */}
+            <div className="hidden md:flex h-full items-end justify-center pb-8 px-6 lg:px-12">
+              <div className="w-full max-w-6xl flex items-end gap-6 lg:gap-10">
+                
+                {/* NPC Avatar Panel - Left Side */}
+                <div className="flex-shrink-0 animate-slide-in-left">
+                  <div className="relative">
+                    <div className="w-20 h-20 lg:w-24 lg:h-24 rounded-2xl bg-gradient-to-br from-yellow-400 via-yellow-500 to-amber-600 p-1 glow-pulse shadow-2xl">
+                      <div className="w-full h-full rounded-xl bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center">
+                        <span className="text-yellow-400 font-black text-3xl lg:text-4xl">S</span>
+                      </div>
+                    </div>
+                    <div className="absolute -bottom-2 -right-2 w-6 h-6 bg-green-500 rounded-full border-4 border-gray-900 shadow-lg" />
+                    <div className="absolute -top-1 -left-1 w-4 h-4 bg-yellow-400 rounded-full animate-ping opacity-75" />
+                  </div>
+                </div>
+                
+                {/* Main Dialogue Box - Center */}
+                <div className="flex-1 pointer-events-auto animate-fade-in-up">
+                  <div className="relative bg-gradient-to-br from-gray-900/98 via-gray-800/95 to-gray-900/98 backdrop-blur-2xl rounded-2xl border border-white/10 shadow-[0_20px_80px_rgba(0,0,0,0.8)] overflow-hidden">
+                    
+                    {/* Decorative Elements */}
+                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-yellow-500/0 via-yellow-500 to-yellow-500/0" />
+                    <div className="absolute top-4 right-4 opacity-5 pointer-events-none">
+                      <svg className="w-32 h-32 text-white" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
+                      </svg>
+                    </div>
+                    
+                    {/* Header */}
+                    <div className="flex items-center justify-between p-5 pb-3 border-b border-white/5">
+                      <div className="flex flex-col">
+                        <span className="text-yellow-500/80 font-semibold uppercase tracking-[0.25em] text-xs">Conversando com</span>
+                        <span className="text-white font-bold text-xl lg:text-2xl mt-0.5">Supervisor do Saguão</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-white/40 text-xs font-mono">
+                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                        Online
+                      </div>
+                    </div>
+                    
+                    {/* Dialogue Text */}
+                    <div className="p-5 pt-4 min-h-[120px] max-h-[180px] overflow-y-auto dialogue-scroll">
+                      <p className="text-gray-100 text-xl lg:text-2xl leading-relaxed font-light">
+                        <span className="text-yellow-400 text-3xl mr-2">"</span>
+                        <TypewriterText text={node.text} speed={20} />
+                        <span className="text-yellow-400 text-3xl ml-2">"</span>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Options Panel - Right Side */}
+                <div className={`w-80 lg:w-96 flex flex-col gap-3 pointer-events-auto transition-all duration-500 ${showOptions ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-8'}`}>
+                  <div className="text-white/40 text-xs font-mono uppercase tracking-widest mb-1 flex items-center gap-2">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                    </svg>
+                    Escolha uma resposta
+                  </div>
+                  {node.options.map((opt, i) => (
+                    <button 
+                      key={i}
+                      onClick={() => opt.next ? onOptionSelect(opt.next) : onClose()}
+                      style={{ animationDelay: `${i * 0.1}s` }}
+                      className={`group relative w-full text-left overflow-hidden animate-slide-in-right stagger-${i + 1}`}
+                    >
+                      <div className="relative px-5 py-4 bg-gradient-to-r from-gray-900/95 to-gray-800/90 backdrop-blur-xl border border-white/10 rounded-xl transition-all duration-300 hover:border-yellow-500/50 hover:bg-gradient-to-r hover:from-yellow-500/10 hover:to-transparent hover:shadow-[0_0_30px_rgba(251,191,36,0.15)] active:scale-[0.98]">
+                        <div className="flex items-center gap-4">
+                          <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-yellow-500/10 border border-yellow-500/30 flex items-center justify-center text-yellow-400 text-sm font-bold group-hover:bg-yellow-500 group-hover:text-black group-hover:border-yellow-500 transition-all duration-300">
+                            {i + 1}
+                          </div>
+                          <span className="text-gray-300 group-hover:text-white font-medium text-sm lg:text-base flex-1 transition-colors">{opt.text}</span>
+                          <svg className="w-5 h-5 text-yellow-400 opacity-0 group-hover:opacity-100 transform translate-x-2 group-hover:translate-x-0 transition-all duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                          </svg>
+                        </div>
+                        {/* Shimmer effect on hover */}
+                        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                          <div className="absolute inset-0 shimmer" />
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+                
+              </div>
+            </div>
+          </div>
+        );
+      };
+
+      // --- WORLD COMPONENT ---
+      const COLORS = { wall: "#FFF9C4", wood: "#8D6E63", floor: "#78909C", ceiling: "#C2A278", metal: "#CFD8DC", elevWood: "#FFE082", elevTrim: "#4E342E", elevFloor: "#EEEEEE", elevCircle: "#FFF59D", elevDoor: "#B0BEC5", elevPanel: "#CFD8DC", grass: "#4CAF50", sky: "#87CEEB", houseWall: "#F5F5F5", houseRoof: "#8D6E63", furniture: "#795548", bed: "#1E88E5", sofa: "#5D4037", light: "#FFF9C4" };
+      const ASSETS = { noise: "https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/moon_1024.jpg", grass: "https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/terrain/grasslight-big.jpg", wood: "https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/hardwood2_diffuse.jpg", lobbyFloor: "https://raw.githubusercontent.com/Felipe9272727/Textura-/main/file_00000000febc71f5992f1ccc1b591002.png", wallPanel: "https://raw.githubusercontent.com/Felipe9272727/Textura-amadeirada-/main/file_0000000040e871f59722d8404d631582.png", wall: "https://raw.githubusercontent.com/Felipe9272727/Textura-da-parede/main/file_000000005dc071f5ba34d550bd83847b.png", ceiling: "https://raw.githubusercontent.com/Felipe9272727/Textura-de-teto/refs/heads/main/Screenshot_2026-01-18-12-39-26-946_com.openai.chatgpt-edit.jpg" };
+
+      const TextureMaterial = React.memo(({ url, color = "#ffffff", repeat = [1, 1], roughness = 0.8, metalness = 0.0, bumpScale = 0.0, transparent = false, opacity = 1.0, rotation = 0 }) => {
+          const texture = useTexture(url);
+          const map = useMemo(() => {
+              const cloned = texture.clone(); cloned.wrapS = cloned.wrapT = THREE.RepeatWrapping; cloned.repeat.set(repeat[0], repeat[1]);
+              if (rotation !== 0) { cloned.center.set(0.5, 0.5); cloned.rotation = rotation; }
+              cloned.needsUpdate = true; return cloned;
+          }, [texture, repeat[0], repeat[1], rotation]);
+          return <meshStandardMaterial map={map} color={color} roughness={roughness} metalness={metalness} bumpMap={bumpScale > 0 ? map : undefined} bumpScale={bumpScale} transparent={transparent} opacity={opacity} />;
+      });
+
+      const Door = React.memo(({ x, z, rot }) => (
+          <group position={[x, 1.1, z]} rotation={[0, rot, 0]}>
+            <mesh receiveShadow castShadow><boxGeometry args={[1.4, 2.2, 0.1]} /><meshStandardMaterial color="#E0E0E0" roughness={0.4} /></mesh>
+            <mesh position={[0, 0, 0]} receiveShadow><boxGeometry args={[1.5, 2.3, 0.05]} /><meshStandardMaterial color="#9E9E9E" roughness={0.5} /></mesh>
+            <mesh position={[0.6, 0, 0.08]}><sphereGeometry args={[0.05, 8, 8]} /><meshStandardMaterial color="#FFD54F" metalness={0.4} roughness={0.2} /></mesh>
+          </group>
+      ));
+      const WallPanel = React.memo(({ x, z, rot }) => (
+          <group position={[x, 2.2, z]} rotation={[0, rot, 0]}>
+            <mesh receiveShadow><boxGeometry args={[2, 1.2, 0.05]} /><meshStandardMaterial color="#212121" roughness={0.2} /></mesh>
+            <mesh position={[0, 0, 0.03]}><boxGeometry args={[1.8, 1.0, 0.01]} /><meshBasicMaterial color="#000000" /></mesh>
+            <Text position={[0, 0, 0.04]} fontSize={0.2} color="#00FF00" font="https://fonts.gstatic.com/s/roboto/v18/KFOmCnqEu92Fr1Mu4mxM.woff" anchorX="center" anchorY="middle">3</Text>
+          </group>
+      ));
+      const CallPanel = React.memo(({ x, z, rot }) => (
+          <group position={[x, 1.5, z]} rotation={[0, rot, 0]}>
+              <mesh receiveShadow><boxGeometry args={[0.4, 0.6, 0.05]} /><meshStandardMaterial color={COLORS.elevPanel} metalness={0.3} roughness={0.4} /></mesh>
+              <mesh position={[0, -0.1, 0.03]} rotation={[Math.PI/2, 0, 0]}><cylinderGeometry args={[0.08, 0.08, 0.05, 12]} /><meshStandardMaterial color="#FFFFFF" emissive="#333333" /></mesh>
+              <mesh position={[0, 0.15, 0.03]}><planeGeometry args={[0.25, 0.15]} /><meshBasicMaterial color="#000000" /></mesh>
+              <Text position={[0, 0.15, 0.04]} fontSize={0.1} color="#00FF00" font="https://fonts.gstatic.com/s/roboto/v18/KFOmCnqEu92Fr1Mu4mxM.woff" anchorX="center" anchorY="middle">^</Text>
+          </group>
+      ));
+      const CeilingLight = React.memo(({ x, z }) => (
+          <group position={[x, 4.45, z]}>
+            <mesh rotation={[Math.PI / 2, 0, 0]}><planeGeometry args={[1.5, 3]} /><meshStandardMaterial color="#FFFFFF" emissive="#EEEEEE" emissiveIntensity={0.5} /></mesh>
+            <pointLight distance={8} intensity={2} decay={2} color={COLORS.light} position={[0, -0.5, 0]} />
+          </group>
+      ));
+
+      const ElevatorDoors = React.memo(({ closed }) => {
+          const leftDoorRef = useRef(null); const rightDoorRef = useRef(null);
+          useFrame((state, delta) => {
+              const speed = 5.0 * delta; const targetLeft = closed ? -0.76 : -2.3; const targetRight = closed ? 0.76 : 2.3;
+              if (leftDoorRef.current) leftDoorRef.current.position.x = THREE.MathUtils.lerp(leftDoorRef.current.position.x, targetLeft, speed);
+              if (rightDoorRef.current) rightDoorRef.current.position.x = THREE.MathUtils.lerp(rightDoorRef.current.position.x, targetRight, speed);
+          });
+          return (
+              <group position={[0, 2.0, 2.92]}> 
+                  <group ref={leftDoorRef} position={[-2.3, 0, 0]}><mesh receiveShadow castShadow><boxGeometry args={[1.52, 4.0, 0.05]} /><meshStandardMaterial color="#B0BEC5" metalness={0.2} roughness={0.3} /></mesh></group>
+                  <group ref={rightDoorRef} position={[2.3, 0, 0]}><mesh receiveShadow castShadow><boxGeometry args={[1.52, 4.0, 0.05]} /><meshStandardMaterial color="#B0BEC5" metalness={0.2} roughness={0.3} /></mesh></group>
+              </group>
+          )
+      });
+
+      const ElevatorFacade = React.memo(({ z, height = 4.5, width = 10 }) => {
+          const W = width; const H = height; const WH = 1.2;
+          return (
+              <group position={[0, 0, z]}>
+                  <group position={[-(W/4 + 1), H/2, 0]}>
+                      <mesh receiveShadow castShadow><boxGeometry args={[W/2 - 2, H, 0.5]} /><TextureMaterial url={ASSETS.wall} repeat={[2, 1]} roughness={0.9} /></mesh>
+                      <mesh position={[-0.2, -H/2 + WH/2, 0.3]} receiveShadow castShadow><boxGeometry args={[W/2 - 2.5, WH, 0.1]} /><TextureMaterial url={ASSETS.wallPanel} color="#ffffff" repeat={[2, 1]} rotation={0} roughness={0.6} metalness={0} /></mesh>
+                  </group>
+                  <group position={[(W/4 + 1), H/2, 0]}>
+                      <mesh receiveShadow castShadow><boxGeometry args={[W/2 - 2, H, 0.5]} /><TextureMaterial url={ASSETS.wall} repeat={[2, 1]} roughness={0.9} /></mesh>
+                      <mesh position={[0.2, -H/2 + WH/2, 0.3]} receiveShadow castShadow><boxGeometry args={[W/2 - 2.5, WH, 0.1]} /><TextureMaterial url={ASSETS.wallPanel} color="#ffffff" repeat={[2, 1]} rotation={0} roughness={0.6} metalness={0} /></mesh>
+                  </group>
+                  <mesh position={[0, H - (H-2.8)/2, 0]} receiveShadow castShadow><boxGeometry args={[4, H - 2.8, 0.5]} /><TextureMaterial url={ASSETS.wall} repeat={[1, 0.5]} roughness={0.9} /></mesh>
+                  <CallPanel x={2.3} z={0.05} rot={0} />
+              </group>
+          );
+      });
+
+      const ElevatorInterior = React.memo(({ timer, doorsClosed, level }) => {
+          const EW = 6.5; const ED = 6.0; const EH = 4.0; const E_Z = -13.0; const OPENING_W = 3.0; 
+          const panelText = timer !== null ? Math.ceil(timer).toString() : "--"; const panelColor = timer !== null ? "#FF0000" : "#00FF00";
+          const fillIntensity = level === 1 ? 1.0 : 3.0; const spotIntensity = level === 1 ? 2.5 : 5.0;
+          return (
+              <group position={[0, 0, E_Z]}>
+                  <pointLight position={[0, 3, 0]} intensity={fillIntensity} distance={15} color="#FFFFFF" decay={1} />
+                  <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]} receiveShadow><planeGeometry args={[EW, ED]} /><meshStandardMaterial color={COLORS.elevFloor} roughness={0.5} metalness={0} /></mesh>
+                  <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, 0]} receiveShadow><ringGeometry args={[2.0, 2.5, 32]} /><meshStandardMaterial color={COLORS.elevCircle} roughness={0.5} metalness={0} /></mesh>
+                  <group position={[0, EH, 0]}>
+                      <mesh rotation={[Math.PI / 2, 0, 0]}><planeGeometry args={[EW, ED]} /><TextureMaterial url={ASSETS.wood} color="#5D4037" repeat={[3, 3]} roughness={0.8} metalness={0} /></mesh>
+                      {[[-2.0, -2.0], [2.0, -2.0], [-2.0, 2.0], [2.0, 2.0]].map((pos, i) => (
+                          <group key={i} position={[pos[0], -0.05, pos[1]]}>
+                              <mesh rotation={[Math.PI/2, 0, 0]}><circleGeometry args={[0.2, 12]} /><meshBasicMaterial color="#FFFFE0" /></mesh>
+                              <pointLight intensity={spotIntensity * 0.5} distance={10} color="#FFF9C4" position={[0, -0.5, 0]} />
+                          </group>
+                      ))}
+                  </group>
+                  <group position={[0, EH/2, -ED/2 + 0.05]}>
+                      <mesh receiveShadow><boxGeometry args={[EW, EH, 0.1]} /><TextureMaterial url={ASSETS.wood} color={COLORS.wood} repeat={[2, 2]} rotation={Math.PI/2} roughness={0.8} metalness={0} /></mesh>
+                      <mesh position={[0, -EH/2 + 0.3, 0.05]}><boxGeometry args={[EW, 0.6, 0.05]} /><meshStandardMaterial color={COLORS.elevTrim} roughness={0.6} /></mesh>
+                  </group>
+                  <group position={[-EW/2 + 0.05, EH/2, 0]}>
+                      <mesh receiveShadow><boxGeometry args={[0.1, EH, ED]} /><TextureMaterial url={ASSETS.wood} color={COLORS.wood} repeat={[2, 2]} rotation={Math.PI/2} roughness={0.8} metalness={0} /></mesh>
+                      <mesh position={[0.05, -EH/2 + 0.3, 0]}><boxGeometry args={[0.05, 0.6, ED]} /><meshStandardMaterial color={COLORS.elevTrim} roughness={0.6} /></mesh>
+                  </group>
+                  <group position={[EW/2 - 0.05, EH/2, 0]}>
+                      <mesh receiveShadow><boxGeometry args={[0.1, EH, ED]} /><TextureMaterial url={ASSETS.wood} color={COLORS.wood} repeat={[2, 2]} rotation={Math.PI/2} roughness={0.8} metalness={0} /></mesh>
+                      <mesh position={[-0.05, -EH/2 + 0.3, 0]}><boxGeometry args={[0.05, 0.6, ED]} /><meshStandardMaterial color={COLORS.elevTrim} roughness={0.6} /></mesh>
+                  </group>
+                  <group position={[1.8, 1.4, 2.7]} rotation={[0, Math.PI, 0]}>
+                      <mesh position={[0, 0, -0.09]}><boxGeometry args={[0.4, 0.9, 0.18]} /><meshStandardMaterial color={COLORS.elevTrim} /></mesh>
+                      <mesh position={[0, 0, 0]}><boxGeometry args={[0.5, 1.0, 0.02]} /><meshStandardMaterial color={COLORS.elevPanel} metalness={0.2} roughness={0.4} /></mesh>
+                      <group position={[0, 0.3, 0.02]}><mesh><planeGeometry args={[0.35, 0.15]} /><meshBasicMaterial color="#000000" /></mesh><Text position={[0, 0, 0.01]} fontSize={0.12} color={panelColor} font="https://fonts.gstatic.com/s/roboto/v18/KFOmCnqEu92Fr1Mu4mxM.woff" anchorX="center" anchorY="middle">{panelText}</Text></group>
+                      <group position={[0, -0.15, 0.02]}>{[1, 2, 3, 4].map((num, i) => (<group key={num} position={[((i%2) - 0.5) * 0.15, (1 - Math.floor(i/2)) * 0.15, 0]}><mesh rotation={[Math.PI/2, 0, 0]}><cylinderGeometry args={[0.04, 0.04, 0.01, 12]} /><meshStandardMaterial color={num === 3 ? "#FFEB3B" : "#FFFFFF"} /></mesh></group>))}</group>
+                  </group>
+                  <group position={[0, 0, ED/2]}>
+                      <mesh position={[-(EW + OPENING_W)/4, EH/2, 0]} receiveShadow><boxGeometry args={[(EW - OPENING_W)/2, EH, 0.2]} /><meshStandardMaterial color={COLORS.elevDoor} metalness={0.2} roughness={0.3} /></mesh>
+                      <mesh position={[(EW + OPENING_W)/4, EH/2, 0]} receiveShadow><boxGeometry args={[(EW - OPENING_W)/2, EH, 0.2]} /><meshStandardMaterial color={COLORS.elevDoor} metalness={0.2} roughness={0.3} /></mesh>
+                      <mesh position={[0, EH - (EH - 2.6)/2, 0]} receiveShadow><boxGeometry args={[OPENING_W, EH - 2.6, 0.2]} /><meshStandardMaterial color={COLORS.elevDoor} metalness={0.2} roughness={0.3} /></mesh>
+                  </group>
+                  <ElevatorDoors closed={doorsClosed} />
+              </group>
+          );
+      });
+
+      const Sofa = React.memo(({ x, z, rot }) => (
+          <group position={[x, 0, z]} rotation={[0, rot, 0]}>
+              <mesh position={[0, 0.3, 0]} castShadow receiveShadow><boxGeometry args={[2, 0.6, 0.8]} /><meshStandardMaterial color={COLORS.sofa} roughness={0.9} /></mesh>
+              <mesh position={[0, 0.7, -0.3]} castShadow receiveShadow><boxGeometry args={[2, 0.8, 0.2]} /><meshStandardMaterial color={COLORS.sofa} roughness={0.9} /></mesh>
+              <mesh position={[-0.9, 0.5, 0]} castShadow receiveShadow><boxGeometry args={[0.2, 0.5, 0.8]} /><meshStandardMaterial color={COLORS.sofa} roughness={0.9} /></mesh>
+              <mesh position={[0.9, 0.5, 0]} castShadow receiveShadow><boxGeometry args={[0.2, 0.5, 0.8]} /><meshStandardMaterial color={COLORS.sofa} roughness={0.9} /></mesh>
+          </group>
+      ));
+      const CoffeeTable = React.memo(({ x, z }) => (
+          <group position={[x, 0, z]}>
+              <mesh position={[0, 0.35, 0]} castShadow receiveShadow><boxGeometry args={[1.2, 0.05, 0.8]} /><meshStandardMaterial color="#3E2723" roughness={0.2} /></mesh>
+              <mesh position={[-0.5, 0.17, -0.3]}><cylinderGeometry args={[0.03, 0.03, 0.35]} /><meshStandardMaterial color="#000" /></mesh>
+              <mesh position={[0.5, 0.17, -0.3]}><cylinderGeometry args={[0.03, 0.03, 0.35]} /><meshStandardMaterial color="#000" /></mesh>
+              <mesh position={[-0.5, 0.17, 0.3]}><cylinderGeometry args={[0.03, 0.03, 0.35]} /><meshStandardMaterial color="#000" /></mesh>
+              <mesh position={[0.5, 0.17, 0.3]}><cylinderGeometry args={[0.03, 0.03, 0.35]} /><meshStandardMaterial color="#000" /></mesh>
+          </group>
+      ));
+      const Bed = React.memo(({ x, z, rot }) => (
+          <group position={[x, 0, z]} rotation={[0, rot, 0]}>
+              <mesh position={[0, 0.3, 0]} castShadow receiveShadow><boxGeometry args={[1.8, 0.4, 2.2]} /><meshStandardMaterial color={COLORS.bed} roughness={0.6} /></mesh>
+              <mesh position={[0, 0.05, 0]} castShadow><boxGeometry args={[1.9, 0.1, 2.3]} /><meshStandardMaterial color="#4E342E" /></mesh>
+              <mesh position={[0, 0.6, -1.1]} castShadow><boxGeometry args={[1.9, 1.2, 0.1]} /><meshStandardMaterial color="#4E342E" /></mesh>
+              <mesh position={[0, 0.55, -0.9]} castShadow><boxGeometry args={[1.0, 0.15, 0.4]} /><meshStandardMaterial color="#FFFFFF" /></mesh>
+          </group>
+      ));
+      const KitchenCounter = React.memo(({ x, z, w, d, rot = 0 }) => (
+          <group position={[x, 0.45, z]} rotation={[0, rot, 0]}>
+              <mesh castShadow receiveShadow><boxGeometry args={[w, 0.9, d]} /><meshStandardMaterial color="#CFD8DC" /></mesh>
+              <mesh position={[0, 0.46, 0]} receiveShadow><boxGeometry args={[w + 0.05, 0.04, d + 0.05]} /><meshStandardMaterial color="#212121" roughness={0.1} /></mesh>
+          </group>
+      ));
+
+      const House = React.memo(({ x, z, rot, doorOpen }) => {
+          const doorRef = useRef(null);
+          useFrame((state, delta) => { if (doorRef.current) doorRef.current.rotation.y = THREE.MathUtils.lerp(doorRef.current.rotation.y, doorOpen ? -2 : 0, delta * 3); });
+          return (
+              <group position={[x, 0, z]} rotation={[0, rot, 0]}>
+                  <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, 0.05, 0]} receiveShadow><planeGeometry args={[7.8, 7.8]} /><TextureMaterial url={ASSETS.wood} color={COLORS.wood} repeat={[4, 4]} roughness={0.5} /></mesh>
+                  <mesh rotation={Math.PI/2, 0, 0} position={[0, 5.95, 0]}><planeGeometry args={[7.8, 7.8]} /><meshStandardMaterial color="#FFFFFF" roughness={0.9} /></mesh>
+                  <mesh position={[0, 3, -4]} castShadow receiveShadow><boxGeometry args={[8, 6, 0.2]} /><meshStandardMaterial color={COLORS.houseWall} roughness={0.8} /></mesh>
+                  <mesh position={[-4, 3, 0]} rotation={[0, Math.PI/2, 0]} castShadow receiveShadow><boxGeometry args={[8, 6, 0.2]} /><meshStandardMaterial color={COLORS.houseWall} roughness={0.8} /></mesh>
+                  <mesh position={[-4, 3, 0]} rotation={[0, Math.PI/2, 0]} castShadow receiveShadow><boxGeometry args={[8, 6, 0.2]} /><meshStandardMaterial color={COLORS.houseWall} roughness={0.8} /></mesh>
+                  <mesh position={[4, 3, 0]} rotation={[0, Math.PI/2, 0]} castShadow receiveShadow><boxGeometry args={[8, 6, 0.2]} /><meshStandardMaterial color={COLORS.houseWall} roughness={0.8} /></mesh>
+                  <mesh position={[-2.35, 3, 4]} castShadow receiveShadow><boxGeometry args={[3.3, 6, 0.2]} /><meshStandardMaterial color={COLORS.houseWall} roughness={0.8} /></mesh>
+                  <mesh position={[2.35, 3, 4]} castShadow receiveShadow><boxGeometry args={[3.3, 6, 0.2]} /><meshStandardMaterial color={COLORS.houseWall} roughness={0.8} /></mesh>
+                  <mesh position={[0, 5.125, 4]} castShadow receiveShadow><boxGeometry args={[1.4, 1.75, 0.2]} /><meshStandardMaterial color={COLORS.houseWall} roughness={0.8} /></mesh>
+                  <mesh position={[-2, 3, 0]} castShadow receiveShadow><boxGeometry args={[4, 6, 0.2]} /><meshStandardMaterial color={COLORS.houseWall} roughness={0.8} /></mesh>
+                  <mesh position={[0, 3, -2]} castShadow receiveShadow><boxGeometry args={[0.2, 6, 4]} /><meshStandardMaterial color={COLORS.houseWall} roughness={0.8} /></mesh>
+                  <Sofa x={-2.5} z={2.5} rot={Math.PI/4} /> <CoffeeTable x={-2.0} z={1.5} /> <KitchenCounter x={-3.0} z={-3.5} w={1.5} d={0.8} /> <KitchenCounter x={-1.0} z={-3.5} w={1.5} d={0.8} />
+                  <mesh position={[-3.2, 1.5, -0.5]} castShadow><boxGeometry args={[1.2, 3, 1]} /><meshStandardMaterial color="#ECEFF1" metalness={0.3} roughness={0.2} /></mesh>
+                  <Bed x={2.5} z={-2.5} rot={0} />
+                  <group position={[-0.7, 1.25, 4.0]} ref={doorRef}>
+                      <group position={[0.7, 0, 0]}>
+                          <mesh castShadow receiveShadow><boxGeometry args={[1.4, 2.5, 0.1]} /><meshStandardMaterial color="#5D4037" /></mesh>
+                          <mesh position={[0.5, 0, 0.06]}> <sphereGeometry args={[0.08, 8, 8]} /><meshStandardMaterial color="#FFD700" /></mesh>
+                      </group>
+                  </group>
+                  <mesh position={[0, 8, 0]} rotation={[0, Math.PI/4, 0]} castShadow><coneGeometry args={[7, 4, 4]} /><meshStandardMaterial color={COLORS.houseRoof} roughness={0.6} /></mesh>
+                  <mesh position={[-2.5, 3.5, 4.15]}><planeGeometry args={[1.5, 1.5]} /><meshStandardMaterial color="#81D4FA" emissive="#000000" roughness={0.2} metalness={0.8} /></mesh>
+                  <mesh position={[2.5, 3.5, 4.15]}><planeGeometry args={[1.5, 1.5]} /><meshStandardMaterial color="#81D4FA" emissive="#000000" roughness={0.2} metalness={0.8} /></mesh>
+                  <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, 0.01, 7]} receiveShadow><planeGeometry args={[2, 6]} /> <meshStandardMaterial color="#9E9E9E" /></mesh>
+                  <pointLight position={[0, 5, 0]} intensity={3} distance={12} color="#FFD54F" />
+              </group>
+          )
+      });
+      
+      const DussekarCharacter = ({ position, rotation }) => {
+        const [dialogue, setDialogue] = useState(null);
+        const { scene } = useGLTF("https://raw.githubusercontent.com/Felipe9272727/Vers-o-definitiva/main/blocky%20character%203d%20model.glb");
+        const clonedScene = useMemo(() => scene.clone(), [scene]);
+        const group = useRef();
+        useFrame((state) => { if (group.current) group.current.position.y = position[1] + Math.sin(state.clock.elapsedTime * 0.8) * 0.015; });
+        useEffect(() => {
+            let active = true; let showTimer; let hideTimer;
+            const lines = ["The geometry is leaking.", "I saw a color that doesn't exist.", "Do the buttons feel pain?", "I am vibrating at the wrong frequency.", "Someone stole the floor yesterday.", "The air is too thick to chew.", "I remember when this was all orange.", "My reflection blinked first.", "Static tastes like lemons.", "The elevator knows what you did.", "Gravity is just a suggestion.", "I am waiting for the Tuesday that never comes.", "Do not look at the corners."];
+            const runCycle = () => {
+                if (!active) return;
+                showTimer = setTimeout(() => {
+                    if (!active) return;
+                    const text = lines[Math.floor(Math.random() * lines.length)];
+                    setDialogue(text);
+                    hideTimer = setTimeout(() => { if (active) { setDialogue(null); runCycle(); } }, 10000);
+                }, 5000);
+            };
+            runCycle(); return () => { active = false; clearTimeout(showTimer); clearTimeout(hideTimer); };
+        }, []);
+        return (
+            <group ref={group} position={position} rotation={rotation}>
+                <primitive object={clonedScene} scale={3} position={[0, 0, 0]} />
+                 {dialogue && (
+                    <Html position={[0, 1.0, 0]} center distanceFactor={10}>
+                        <div className="pointer-events-none select-none whitespace-nowrap speech-bubble">
+                            <div className="bg-white text-black px-4 py-2 rounded-xl border-2 border-black shadow-lg relative flex items-center justify-center transform -translate-y-full">
+                                <p className="text-sm font-bold font-mono m-0">{dialogue}</p>
+                                <div className="absolute left-1/2 -translate-x-1/2 bottom-[-8px] w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[8px] border-t-black"></div>
+                                <div className="absolute left-1/2 -translate-x-1/2 bottom-[-5px] w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-white"></div>
+                            </div>
+                        </div>
+                    </Html>
+                 )}
+            </group>
+        )
+      };
+
+      const LobbyNPC = ({ positionRef, isPaused, playerPositionRef }) => {
+        const group = useRef();
+        const { scene } = useGLTF(NPC_WALK_URL);
+        const { animations: walkAnims } = useGLTF(NPC_WALK_URL);
+        const { animations: idleAnims } = useGLTF(NPC_IDLE_URL);
+        const { actions } = useAnimations(useMemo(() => {
+            const w = walkAnims.map(a => { const c = a.clone(); c.name = "Walking"; return c; });
+            const i = idleAnims.map(a => { const c = a.clone(); c.name = "Idle"; return c; });
+            return [...i, ...w];
+        }, [walkAnims, idleAnims]), group);
+        const aiState = useRef({ state: 'Idle', target: new Vector3(0, 0, 0), timer: 0 });
+        useEffect(() => {
+            scene.traverse((child) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; if (child.material) { child.material.side = THREE.DoubleSide; child.material.transparent = false; child.material.alphaTest = 0.5; } } });
+            if(actions['Idle']) actions['Idle'].play();
+        }, [scene, actions]);
+        useFrame((state, delta) => {
+            if (!group.current) return;
+            if (positionRef) positionRef.current.copy(group.current.position);
+            if (isPaused) {
+                if (aiState.current.state === 'Walking') {
+                    aiState.current.state = 'Idle';
+                    const walkAction = actions['Walking']; const idleAction = actions['Idle'];
+                    if (idleAction) { idleAction.reset().fadeIn(0.2).play(); walkAction?.fadeOut(0.2); }
+                }
+                if (playerPositionRef && playerPositionRef.current) {
+                    const playerPos = playerPositionRef.current; const npcPos = group.current.position;
+                    const dx = playerPos.x - npcPos.x; const dz = playerPos.z - npcPos.z;
+                    const targetRotation = Math.atan2(dx, dz); const currentRotation = group.current.rotation.y;
+                    let diff = targetRotation - currentRotation; while (diff > Math.PI) diff -= Math.PI * 2; while (diff < -Math.PI) diff += Math.PI * 2;
+                    group.current.rotation.y += diff * 5 * delta;
+                }
+                return;
+            }
+            const ai = aiState.current; const pos = group.current.position;
+            if (ai.state === 'Idle') {
+                ai.timer -= delta;
+                if (ai.timer <= 0) {
+                    const tx = (Math.random() - 0.5) * 14; const tz = (Math.random() - 0.5) * 14; ai.target.set(tx, 0, tz);
+                    ai.state = 'Walking';
+                    const walkAction = actions['Walking']; const idleAction = actions['Idle'];
+                    if (walkAction) { walkAction.reset().fadeIn(0.5).play(); idleAction?.fadeOut(0.5); }
+                }
+            } else if (ai.state === 'Walking') {
+                const direction = new Vector3().subVectors(ai.target, pos); direction.y = 0; const dist = direction.length();
+                if (dist < 0.5) {
+                    ai.state = 'Idle'; ai.timer = 2 + Math.random() * 4;
+                    const walkAction = actions['Walking']; const idleAction = actions['Idle'];
+                    if (idleAction) { idleAction.reset().fadeIn(0.5).play(); walkAction?.fadeOut(0.5); }
+                } else {
+                    direction.normalize(); const moveSpeed = 2.0 * delta; pos.addScaledVector(direction, moveSpeed);
+                    const targetRotation = Math.atan2(direction.x, direction.z); const currentRotation = group.current.rotation.y;
+                    let diff = targetRotation - currentRotation; while (diff > Math.PI) diff -= Math.PI * 2; while (diff < -Math.PI) diff += Math.PI * 2;
+                    group.current.rotation.y += diff * 5 * delta;
+                }
+            }
+        });
+        return (<group ref={group} position={[5, 0, 5]}><primitive object={scene} scale={[1, 1, 1]} /></group>);
+      };
+
+      const Barrel = ({ position }) => (
+        <group position={position}>
+            <mesh position={[0, 0.4, 0]}><cylinderGeometry args={[0.5, 0.5, 1.0, 12]} /><meshStandardMaterial color="#5D4037" /></mesh>
+            <mesh position={[0, 0.8, 0]}><cylinderGeometry args={[0.51, 0.51, 0.05, 12]} /><meshStandardMaterial color="#212121" /></mesh>
+            <mesh position={[0, 0.1, 0]}><cylinderGeometry args={[0.51, 0.51, 0.05, 12]} /><meshStandardMaterial color="#212121" /></mesh>
+        </group>
+      );
+      const Shop = ({ position }) => {
+        const TILE_COLOR = "#BCAAA4"; const LIGHT_COLOR = "#FFEB3B"; 
+        return (
+            <group position={position}>
+                 <mesh position={[2.0, 0.05, 0]} receiveShadow><boxGeometry args={[4.0, 0.1, 4.8]} /><meshStandardMaterial color="#212121" roughness={0.9} /></mesh>
+                 <mesh position={[2.0, 3.95, 0]}><boxGeometry args={[4.0, 0.1, 4.8]} /><meshStandardMaterial color="#3E2723" /></mesh>
+                 <mesh position={[2.0, 3.85, 0]}><boxGeometry args={[2.5, 0.1, 3.5]} /><meshStandardMaterial color={LIGHT_COLOR} emissive={LIGHT_COLOR} emissiveIntensity={4.0} toneMapped={false} /></mesh>
+                 <pointLight position={[2.0, 3.0, 0]} intensity={3.0} color={LIGHT_COLOR} distance={8} decay={1} />
+                 <mesh position={[3.95, 2.0, 0]} receiveShadow><boxGeometry args={[0.1, 4.0, 4.8]} /><TextureMaterial url={ASSETS.noise} color="#A65E2E" repeat={[4, 4]} roughness={0.5} /></mesh>
+                 <mesh position={[2.0, 2.0, -2.4]} receiveShadow><boxGeometry args={[4.0, 4.0, 0.1]} /><TextureMaterial url={ASSETS.noise} color="#A65E2E" repeat={[4, 4]} roughness={0.5} /></mesh>
+                 <mesh position={[2.0, 2.0, 2.4]} receiveShadow><boxGeometry args={[4.0, 4.0, 0.1]} /><TextureMaterial url={ASSETS.noise} color="#A65E2E" repeat={[4, 4]} roughness={0.5} /></mesh>
+                 <group position={[3.6, 1.1, -1.2]}><mesh receiveShadow><boxGeometry args={[0.2, 2.2, 1.0]} /><meshStandardMaterial color="#EEEEEE" /></mesh><mesh position={[-0.05, 0, 0]}><boxGeometry args={[0.25, 2.3, 1.1]} /><meshStandardMaterial color="#9E9E9E" /></mesh></group>
+                 <Barrel position={[3.0, 0, 1.8]} />
+                 <group position={[0.6, 0, 0]}><mesh position={[0, 1.05, 0]} castShadow receiveShadow><boxGeometry args={[1.0, 0.1, 5.0]} /><meshStandardMaterial color="#EEEEEE" roughness={0.2} metalness={0.1} /></mesh><mesh position={[0.1, 0.5, 0]} castShadow receiveShadow><boxGeometry args={[0.8, 1.0, 5.0]} /><TextureMaterial url={ASSETS.wood} color="#3E2723" repeat={[1, 1]} rotation={Math.PI/2} /></mesh></group>
+                 <group position={[0.6, 1.1, 0]}><mesh position={[0, 0.1, -0.6]} castShadow><cylinderGeometry args={[0.12, 0.1, 0.25, 16]} /><meshStandardMaterial color="#1565C0" roughness={0.3} /></mesh><mesh position={[0, 0.1, 0.6]} castShadow><cylinderGeometry args={[0.12, 0.1, 0.25, 16]} /><meshStandardMaterial color="#C62828" roughness={0.3} /></mesh></group>
+                 <DussekarCharacter position={[2.2, 1.1, 0]} rotation={[0, Math.PI, 0]} />
+            </group>
+        );
+      };
+
+      const LobbyEnvironment = React.memo(({ npcPositionRef, isPaused, playerPositionRef }) => {
+          const W = 20; const L = 20; const H = 4.5; const WH = 1.2;
+          return (
+              <group>
+                  <color attach="background" args={['#050505']} />
+                  <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow><planeGeometry args={[W, L]} /><TextureMaterial url={ASSETS.lobbyFloor} repeat={[8, 8]} roughness={0.5} /></mesh>
+                  <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, H, 0]}><planeGeometry args={[W, L]} /><TextureMaterial url={ASSETS.ceiling} repeat={[6, 6]} roughness={0.9} /></mesh>
+                  <ambientLight intensity={0.6} color="#FFFFFF" />
+                  <group position={[0, H/2, L/2]}><mesh receiveShadow><boxGeometry args={[W, H, 0.5]} /><TextureMaterial url={ASSETS.wall} repeat={[4, 1]} roughness={0.9} /></mesh><mesh position={[0, -H/2 + WH/2, -0.3]} receiveShadow><boxGeometry args={[W - 0.6, WH, 0.1]} /><TextureMaterial url={ASSETS.wallPanel} color="#ffffff" repeat={[12, 1]} rotation={0} roughness={0.6} metalness={0} /></mesh></group>
+                  <group position={[-W/2, H/2, 0]}><mesh receiveShadow><boxGeometry args={[0.5, H, L]} /><TextureMaterial url={ASSETS.wall} repeat={[4, 1]} roughness={0.9} /></mesh><mesh position={[0.3, -H/2 + WH/2, 0]} receiveShadow><boxGeometry args={[0.1, WH, L - 0.1]} /><TextureMaterial url={ASSETS.wallPanel} color="#ffffff" repeat={[12, 1]} rotation={0} roughness={0.6} metalness={0} /></mesh></group>
+                  <group position={[W/2, 0, 0]}>
+                     <mesh position={[0, H/2, -6.25]} receiveShadow><boxGeometry args={[0.5, H, 7.5]} /><TextureMaterial url={ASSETS.wall} repeat={[1.5, 1]} roughness={0.9} /></mesh>
+                     <mesh position={[-0.3, WH/2, -6.25]} receiveShadow><boxGeometry args={[0.1, WH, 7.5]} /><TextureMaterial url={ASSETS.wallPanel} color="#ffffff" repeat={[12, 1]} rotation={0} roughness={0.6} metalness={0} /></mesh>
+                     <mesh position={[0, H/2, 6.25]} receiveShadow><boxGeometry args={[0.5, H, 7.5]} /><TextureMaterial url={ASSETS.wall} repeat={[1.5, 1]} roughness={0.9} /></mesh>
+                     <mesh position={[-0.3, WH/2, 6.25]} receiveShadow><boxGeometry args={[0.1, WH, 7.5]} /><TextureMaterial url={ASSETS.wallPanel} color="#ffffff" repeat={[12, 1]} rotation={0} roughness={0.6} metalness={0} /></mesh>
+                     <mesh position={[0, 4.15, 0]} receiveShadow><boxGeometry args={[0.5, 0.7, 5]} /><TextureMaterial url={ASSETS.wall} repeat={[1, 0.2]} roughness={0.9} /></mesh>
+                     <mesh position={[0, 0.5, 0]} receiveShadow><boxGeometry args={[0.5, 1.0, 5]} /><TextureMaterial url={ASSETS.wall} repeat={[1, 0.3]} roughness={0.9} /></mesh>
+                     <mesh position={[-0.3, 0.5, 0]} receiveShadow><boxGeometry args={[0.1, 1.0, 5]} /><TextureMaterial url={ASSETS.wallPanel} color="#ffffff" repeat={[12, 1]} rotation={0} roughness={0.6} metalness={0} /></mesh>
+                     <Shop position={[0, 0, 0]} /> 
+                  </group>
+                  <ElevatorFacade z={-L/2} width={W} />
+                  <Door x={-W/2 + 0.35} z={-5} rot={Math.PI/2} /> <Door x={-W/2 + 0.35} z={5} rot={Math.PI/2} /> <Door x={W/2 - 0.35} z={-5} rot={-Math.PI/2} /> <WallPanel x={-W/2 + 0.3} z={0} rot={Math.PI/2} />
+                  <CeilingLight x={-5} z={-5} /> <CeilingLight x={-5} z={0} /> <CeilingLight x={-5} z={5} /> <CeilingLight x={5} z={-5} /> <CeilingLight x={5} z={0} /> <CeilingLight x={5} z={5} />
+                  <LobbyNPC positionRef={npcPositionRef} isPaused={isPaused} playerPositionRef={playerPositionRef} />
+              </group>
+          );
+      });
+
+      const FlatMapEnvironment = React.memo(({ houseDoorOpen }) => {
+          return (
+              <group>
+                  <ambientLight intensity={0.6} color="#FFFFFF" />
+                  <mesh position={[0, 24.0, 0]}> <boxGeometry args={[50, 50, 50]} /><meshBasicMaterial color={COLORS.sky} side={THREE.BackSide} /></mesh>
+                  <mesh position={[-20, 30, -20]}><sphereGeometry args={[4, 32, 32]} /><meshBasicMaterial color="#FFD700" /></mesh>
+                  <directionalLight position={[-20, 30, -20]} intensity={1.5} castShadow shadow-mapSize={[2048, 2048]}><orthographicCamera attach="shadow-camera" args={[-20, 20, 20, -20]} /></directionalLight>
+                  <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow><planeGeometry args={[50, 50]} /><TextureMaterial url={ASSETS.grass} color={COLORS.grass} repeat={[8, 8]} roughness={0.8} /></mesh>
+                  <House x={0} z={10} rot={Math.PI} doorOpen={houseDoorOpen} />
+                  <group position={[0, 0, -10]}>
+                      <ElevatorFacade z={0} height={5} width={10} />
+                      <mesh position={[0, 2.5, -6.5]} castShadow receiveShadow><boxGeometry args={[11, 5, 1]} /><meshStandardMaterial color={COLORS.wall} /></mesh>
+                      <mesh position={[-5, 2.5, -3.25]} castShadow receiveShadow><boxGeometry args={[1, 5, 7.5]} /><meshStandardMaterial color={COLORS.wall} /></mesh>
+                      <mesh position={[5, 2.5, -3.25]} castShadow receiveShadow><boxGeometry args={[1, 5, 7.5]} /><meshStandardMaterial color={COLORS.wall} /></mesh>
+                      <mesh position={[0, 5.25, -3.25]} castShadow receiveShadow><boxGeometry args={[11, 0.5, 7.5]} /><meshStandardMaterial color={COLORS.wall} /></mesh>
+                  </group>
+              </group>
+          );
+      });
+
+      const World = ({ timer, doorsClosed, level, houseDoorOpen, npcPositionRef, isPaused, playerPositionRef }) => {
+          return (
+              <>
+                  {level === 0 && <LobbyEnvironment npcPositionRef={npcPositionRef} isPaused={isPaused} playerPositionRef={playerPositionRef} />}
+                  {level === 1 && <FlatMapEnvironment houseDoorOpen={houseDoorOpen} />}
+                  <ElevatorInterior timer={timer} doorsClosed={doorsClosed} level={level} />
+              </>
+          );
+      };
+
+      const Avatar = ({ animation, visible = true }) => {
+        const { scene } = useGLTF(WALKING_URL);
+        const { animations: walkingAnims } = useGLTF(WALKING_URL);
+        const { animations: idleAnims } = useGLTF(IDLE_URL);
+        const { actions } = useAnimations(useMemo(() => {
+            const w = walkingAnims.map(a => a.clone()); const i = idleAnims.map(a => a.clone());
+            if (w[0]) w[0].name = "Walking"; if (i[0]) i[0].name = "Idle";
+            return [...i, ...w];
+        }, [walkingAnims, idleAnims]), scene);
+        const hipsRef = useRef(null); const currentOpacity = useRef(1.0);
+        useEffect(() => {
+           scene.traverse((child) => {
+             if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; if (child.material) { child.material.transparent = true; child.material.depthWrite = true; child.material.alphaTest = 0; child.material.side = THREE.DoubleSide; child.material.metalness = 0.0; child.material.roughness = 1.0; child.material.needsUpdate = true; } }
+             if ((child.isBone || child.type === 'Bone') && !hipsRef.current) { if (child.name.toLowerCase().includes('hips') || child.name.toLowerCase().includes('root')) hipsRef.current = child; }
+           });
+        }, [scene]);
+        useFrame((state, delta) => {
+            if (hipsRef.current) { hipsRef.current.position.x = 0; hipsRef.current.position.z = 0; }
+            const targetOpacity = visible ? 1.0 : 0.0; currentOpacity.current = THREE.MathUtils.lerp(currentOpacity.current, targetOpacity, 8 * delta);
+            scene.traverse((child) => { if (child.isMesh && child.material) { child.material.opacity = currentOpacity.current; child.visible = currentOpacity.current > 0.01; } });
+        });
+        useEffect(() => {
+           const action = actions[animation === 'Walking' ? 'Walking' : 'Idle']; const other = actions[animation === 'Walking' ? 'Idle' : 'Walking'];
+           if (other) other.fadeOut(0.2); if (action) action.reset().fadeIn(0.2).play();
+        }, [animation, actions]);
+        return (<group><hemisphereLight intensity={1.0} color="#ffffff" groundColor="#444444" position={[0, 5, 0]} /><primitive object={scene} scale={[30, 30, 30]} position={[0, 0.75, 0]} /></group>);
+      };
+
+      const SPEED = 4.0; const PLAYER_RADIUS = 0.5; const ROOM_WIDTH = 20; const ROOM_LENGTH = 20; const ELEVATOR_WIDTH = 6.5; const ELEVATOR_DEPTH = 6.0; const ELEVATOR_Z_START = -10.0; const DOOR_WIDTH = 3.0; const LEVEL1_SIZE = 50; const LEVEL1_HALF = LEVEL1_SIZE / 2;
+      const HOUSE_Z = 10; const HOUSE_HALF_W = 4; const HOUSE_HALF_D = 4; const HOUSE_MIN_X = -HOUSE_HALF_W; const HOUSE_MAX_X = HOUSE_HALF_W; const HOUSE_MIN_Z = HOUSE_Z - HOUSE_HALF_D; const HOUSE_MAX_Z = HOUSE_Z + HOUSE_HALF_D; const HOUSE_DOOR_Z = 6; const HOUSE_DOOR_X = 0;
+
+      const Player = ({ moveInput, lookInput, isDesktop, onEnterElevator, doorsClosed, currentLevel, onInteractionUpdate, onNpcInteractionUpdate, houseDoorOpen, active, zoomLevel, npcPositionRef, dialogueOpen, sharedPositionRef }) => {
+        const { camera, size } = useThree();
+        const position = useRef(new Vector3(0, 0, 8)); const charRotation = useRef(new Euler(0, Math.PI, 0)); const cameraAngles = useRef({ theta: 0, phi: 0.2 });
+        const avatarGroupRef = useRef(); const cameraLookAtRef = useRef(new Vector3()); 
+        const [animState, setAnimState] = useState('Idle');
+        const hasTriggeredElevator = useRef(false); const HEAD_HEIGHT = 1.6;
+
+        useEffect(() => { hasTriggeredElevator.current = false; }, [currentLevel]);
+        useEffect(() => { cameraAngles.current.theta = Math.PI; cameraAngles.current.phi = 0.2; }, []);
+
+        useFrame((state, delta) => {
+          if (!active) return;
+          const isFirstPerson = zoomLevel < 0.5;
+          if (sharedPositionRef) sharedPositionRef.current.copy(position.current);
+
+          if (dialogueOpen && npcPositionRef && npcPositionRef.current) {
+              setAnimState('Idle');
+              if (avatarGroupRef.current) { avatarGroupRef.current.position.copy(position.current); avatarGroupRef.current.rotation.copy(charRotation.current); }
+              const npcPos = npcPositionRef.current; const playerPos = position.current;
+              const dirToPlayer = new Vector3().subVectors(playerPos, npcPos).normalize(); if (dirToPlayer.lengthSq() < 0.001) dirToPlayer.set(0, 0, 1);
+              const targetCamPos = new Vector3().copy(npcPos).addScaledVector(dirToPlayer, 2.2).add(new Vector3(0, 1.75, 0)); 
+              const targetLookAt = new Vector3().copy(npcPos).add(new Vector3(0, 1.35, 0));
+              camera.position.lerp(targetCamPos, 5 * delta);
+              if (cameraLookAtRef.current.distanceTo(targetLookAt) > 10) { cameraLookAtRef.current.copy(playerPos).add(new Vector3(0, 1.6, 0)); }
+              cameraLookAtRef.current.lerp(targetLookAt, 5 * delta);
+              camera.lookAt(cameraLookAtRef.current);
+              camera.fov = THREE.MathUtils.lerp(camera.fov, 40, 5 * delta); camera.updateProjectionMatrix();
+          } else {
+              const baseSens = 0.003; const sensMultiplier = isFirstPerson ? 1.5 : 1.0; const sensitivity = baseSens * sensMultiplier;
+              if (isDesktop) {
+                 if (lookInput.current.x !== 0 || lookInput.current.y !== 0) { cameraAngles.current.theta -= lookInput.current.x * sensitivity * 500 * delta; cameraAngles.current.phi += lookInput.current.y * sensitivity * 500 * delta; lookInput.current.x = 0; lookInput.current.y = 0; }
+              } else {
+                 if (lookInput.current.x !== 0 || lookInput.current.y !== 0) { cameraAngles.current.theta -= lookInput.current.x * sensMultiplier; cameraAngles.current.phi += lookInput.current.y * sensMultiplier; lookInput.current.x = 0; lookInput.current.y = 0; }
+              }
+              const phiMin = isFirstPerson ? -1.5 : -0.5; const phiMax = isFirstPerson ? 1.5 : 1.2; cameraAngles.current.phi = Math.max(phiMin, Math.min(phiMax, cameraAngles.current.phi));
+              const forwardInput = -moveInput.current.y; const strafeInput = moveInput.current.x; let isMoving = false;
+              if (Math.abs(forwardInput) > 0.01 || Math.abs(strafeInput) > 0.01) {
+                  isMoving = true;
+                  const camDir = new Vector3(Math.sin(cameraAngles.current.theta), 0, Math.cos(cameraAngles.current.theta));
+                  const rightDir = new Vector3(Math.sin(cameraAngles.current.theta - Math.PI/2), 0, Math.cos(cameraAngles.current.theta - Math.PI/2));
+                  const moveVec = new Vector3().addScaledVector(camDir, -forwardInput).addScaledVector(rightDir, -strafeInput).normalize().multiplyScalar(SPEED * delta);
+                  const currentPos = position.current.clone(); const nextPos = currentPos.clone().add(moveVec);
+                  let validX = nextPos.x; let validZ = nextPos.z; const wallBuffer = PLAYER_RADIUS; const doorHalfWidth = (DOOR_WIDTH / 2) - 0.2; const inElevatorZone = nextPos.z < ELEVATOR_Z_START;
+                  if (!inElevatorZone) {
+                      if (currentLevel === 0) {
+                          const maxX = (ROOM_WIDTH / 2) - wallBuffer; if (nextPos.x > maxX) validX = maxX; if (nextPos.x < -maxX) validX = -maxX;
+                          if (nextPos.z > (ROOM_LENGTH / 2) - wallBuffer) validZ = (ROOM_LENGTH / 2) - wallBuffer;
+                      } else {
+                          const limit = LEVEL1_HALF - wallBuffer; if (nextPos.x > limit) validX = limit; if (nextPos.x < -limit) validX = -limit; if (nextPos.z > limit) validZ = limit;
+                          const houseBoundsExpanded = { minX: HOUSE_MIN_X - wallBuffer, maxX: HOUSE_MAX_X + wallBuffer, minZ: HOUSE_MIN_Z - wallBuffer, maxZ: HOUSE_MAX_Z + wallBuffer };
+                          const isInside = (x, z, bounds) => { return x >= bounds.minX && x <= bounds.maxX && z >= bounds.minZ && z <= bounds.maxZ; };
+                          if (isInside(nextPos.x, nextPos.z, houseBoundsExpanded)) {
+                              const distToLeft = Math.abs(nextPos.x - HOUSE_MIN_X); const distToRight = Math.abs(nextPos.x - HOUSE_MAX_X); const distToFront = Math.abs(nextPos.z - HOUSE_MIN_Z); const distToBack = Math.abs(nextPos.z - HOUSE_MAX_Z); const min = Math.min(distToLeft, distToRight, distToFront, distToBack);
+                              if (min === distToLeft) { if (currentPos.x < HOUSE_MIN_X) validX = HOUSE_MIN_X - wallBuffer; else validX = HOUSE_MIN_X + wallBuffer; } 
+                              else if (min === distToRight) { if (currentPos.x > HOUSE_MAX_X) validX = HOUSE_MAX_X + wallBuffer; else validX = HOUSE_MAX_X - wallBuffer; } 
+                              else if (min === distToBack) { if (currentPos.z > HOUSE_MAX_Z) validZ = HOUSE_MAX_Z + wallBuffer; else validZ = HOUSE_MAX_Z - wallBuffer; } 
+                              else if (min === distToFront) { const inDoorGap = Math.abs(nextPos.x) < 0.7; if (houseDoorOpen && inDoorGap) { } else { if (currentPos.z < HOUSE_MIN_Z) validZ = HOUSE_MIN_Z - wallBuffer; else validZ = HOUSE_MIN_Z + wallBuffer; } }
+                          }
+                      }
+                  } else { const maxX = (ELEVATOR_WIDTH / 2) - wallBuffer; if (nextPos.x > maxX) validX = maxX; if (nextPos.x < -maxX) validX = -maxX; }
+                  const elevatorBackZ = ELEVATOR_Z_START - ELEVATOR_DEPTH + wallBuffer; if (nextPos.z < elevatorBackZ) validZ = elevatorBackZ;
+                  const isCrossing = (currentPos.z >= ELEVATOR_Z_START && nextPos.z < ELEVATOR_Z_START) || (currentPos.z < ELEVATOR_Z_START && nextPos.z >= ELEVATOR_Z_START);
+                  if (isCrossing) { if (doorsClosed) { if (currentPos.z >= ELEVATOR_Z_START) validZ = Math.max(currentPos.z, ELEVATOR_Z_START + 0.1); else validZ = Math.min(currentPos.z, ELEVATOR_Z_START - 0.1); } else { if (Math.abs(nextPos.x) > doorHalfWidth) { if (currentPos.z >= ELEVATOR_Z_START) validZ = Math.max(currentPos.z, ELEVATOR_Z_START + 0.1); else validZ = Math.min(currentPos.z, ELEVATOR_Z_START - 0.1); } } } else { if (Math.abs(nextPos.z - ELEVATOR_Z_START) < wallBuffer) { if (Math.abs(nextPos.x) > doorHalfWidth) { if (currentPos.z >= ELEVATOR_Z_START) validZ = Math.max(validZ, ELEVATOR_Z_START + wallBuffer); else validZ = Math.min(validZ, ELEVATOR_Z_START - wallBuffer); } } }
+                  position.current.x = validX; position.current.z = validZ; position.current.y = 0; 
+                  if (isFirstPerson) { charRotation.current.y = cameraAngles.current.theta + Math.PI; } else { const angle = Math.atan2(moveVec.x, moveVec.z); let targetRot = angle; const currentRot = charRotation.current.y; let diff = targetRot - currentRot; while (diff > Math.PI) diff -= Math.PI * 2; while (diff < -Math.PI) diff += Math.PI * 2; charRotation.current.y += diff * 10 * delta; }
+                  if (currentLevel === 1) { const dx = position.current.x - HOUSE_DOOR_X; const dz = position.current.z - HOUSE_DOOR_Z; const dist = Math.sqrt(dx*dx + dz*dz); if (dist < 3.0) onInteractionUpdate(true); else onInteractionUpdate(false); } else { onInteractionUpdate(false); }
+                  if (currentLevel === 0 && npcPositionRef && npcPositionRef.current) { const dist = position.current.distanceTo(npcPositionRef.current); onNpcInteractionUpdate(dist < 4.0); } else { onNpcInteractionUpdate(false); }
+                  if (position.current.z < ELEVATOR_Z_START - 1.0 && !hasTriggeredElevator.current) { if (currentLevel === 0) { hasTriggeredElevator.current = true; onEnterElevator(); } }
+              }
+              setAnimState(isMoving ? 'Walking' : 'Idle');
+              if (avatarGroupRef.current) { avatarGroupRef.current.position.copy(position.current); avatarGroupRef.current.rotation.copy(charRotation.current); }
+              const lookTargetY = position.current.y + HEAD_HEIGHT;
+              const normalTargetLookAt = new Vector3(position.current.x, lookTargetY, position.current.z);
+              cameraLookAtRef.current.lerp(normalTargetLookAt, 10 * delta); 
+              if (isFirstPerson) {
+                  const p = position.current; camera.position.set(p.x, lookTargetY, p.z);
+                  const lookDist = 5; const tx = p.x - Math.sin(cameraAngles.current.theta) * lookDist * Math.cos(cameraAngles.current.phi); const tz = p.z - Math.cos(cameraAngles.current.theta) * lookDist * Math.cos(cameraAngles.current.phi); const ty = lookTargetY - Math.sin(cameraAngles.current.phi) * lookDist;
+                  camera.lookAt(tx, ty, tz); camera.fov = 90; camera.updateProjectionMatrix();
+              } else {
+                  const aspect = size.width / size.height; const isPortrait = aspect < 1.0; const targetFov = isPortrait ? 90 : 75;
+                  if (Math.abs(camera.fov - targetFov) > 0.1) { camera.fov = THREE.MathUtils.lerp(camera.fov, targetFov, 5 * delta); camera.updateProjectionMatrix(); }
+                  const cx = position.current.x + Math.sin(cameraAngles.current.theta) * zoomLevel * Math.cos(cameraAngles.current.phi); const cz = position.current.z + Math.cos(cameraAngles.current.theta) * zoomLevel * Math.cos(cameraAngles.current.phi); const cy = lookTargetY + Math.sin(cameraAngles.current.phi) * zoomLevel; const safeCy = Math.max(cy, 0.2);
+                  camera.position.lerp(new Vector3(cx, safeCy, cz), 10 * delta); camera.lookAt(position.current.x, lookTargetY, position.current.z);
+              }
+          }
+        });
+        return ( <group ref={avatarGroupRef} visible={!(zoomLevel < 0.5)}> <Avatar animation={animState} visible={!dialogueOpen} /> </group> );
+      };
+
+      // --- NEW MENU COMPONENT ---
+      
+      const MainMenu = ({ onPlay }) => {
+        const [doorPosition, setDoorPosition] = useState(0);
+        const [showContent, setShowContent] = useState(false);
+        const [flickerOpacity, setFlickerOpacity] = useState(1);
+        
+        useEffect(() => {
+          // Animate doors opening
+          const doorTimer = setTimeout(() => {
+            setDoorPosition(100);
+          }, 500);
+          
+          // Show content after doors open
+          const contentTimer = setTimeout(() => {
+            setShowContent(true);
+          }, 1200);
+          
+          // Flicker effect
+          const flickerInterval = setInterval(() => {
+            if (Math.random() > 0.95) {
+              setFlickerOpacity(0.7);
+              setTimeout(() => setFlickerOpacity(1), 100);
+            }
+          }, 200);
+          
+          return () => {
+            clearTimeout(doorTimer);
+            clearTimeout(contentTimer);
+            clearInterval(flickerInterval);
+          };
+        }, []);
+        
+        return (
+            <div className="absolute inset-0 z-50 overflow-hidden bg-black">
+              
+              {/* Cinematic Background with Parallax Layers */}
+              <div className="absolute inset-0" style={{ opacity: flickerOpacity, transition: 'opacity 0.05s' }}>
+                {/* Deep background - Dark void */}
+                <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a0f] via-[#0d0d15] to-[#05050a]" />
+                
+                {/* Volumetric light rays from above */}
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[200%] h-[60%] bg-gradient-to-b from-amber-500/[0.03] via-transparent to-transparent" style={{ clipPath: 'polygon(40% 0%, 60% 0%, 80% 100%, 20% 100%)' }} />
+                
+                {/* Floating dust particles */}
+                <div className="absolute inset-0 overflow-hidden">
+                  {[...Array(30)].map((_, i) => (
+                    <div
+                      key={i}
+                      className="absolute w-1 h-1 bg-yellow-200/30 rounded-full"
+                      style={{
+                        left: `${Math.random() * 100}%`,
+                        top: `${Math.random() * 100}%`,
+                        animation: `float ${5 + Math.random() * 10}s ease-in-out infinite`,
+                        animationDelay: `${Math.random() * 5}s`,
+                        transform: `scale(${0.5 + Math.random() * 1})`
+                      }}
+                    />
+                  ))}
+                </div>
+                
+                {/* Subtle vignette */}
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,rgba(0,0,0,0.7)_100%)]" />
+              </div>
+              
+              {/* Animated Elevator Doors */}
+              <div className="absolute inset-0 pointer-events-none z-10">
+                {/* Left Door */}
+                <div 
+                  className="absolute top-0 bottom-0 left-0 w-1/2 bg-gradient-to-r from-[#1a1a1a] via-[#252525] to-[#1f1f1f] border-r border-white/5 shadow-2xl"
+                  style={{ 
+                    transform: `translateX(-${doorPosition}%)`,
+                    transition: 'transform 1.2s cubic-bezier(0.4, 0, 0.2, 1)'
+                  }}
+                >
+                  {/* Door panel details */}
+                  <div className="absolute right-4 top-4 bottom-4 w-1 bg-gradient-to-b from-transparent via-white/5 to-transparent" />
+                  <div className="absolute right-8 top-1/2 -translate-y-1/2 w-6 h-24 rounded-full bg-white/5" />
+                  <div className="absolute inset-4 border border-white/[0.03] rounded-sm" />
+                </div>
+                
+                {/* Right Door */}
+                <div 
+                  className="absolute top-0 bottom-0 right-0 w-1/2 bg-gradient-to-l from-[#1a1a1a] via-[#252525] to-[#1f1f1f] border-l border-white/5 shadow-2xl"
+                  style={{ 
+                    transform: `translateX(${doorPosition}%)`,
+                    transition: 'transform 1.2s cubic-bezier(0.4, 0, 0.2, 1)'
+                  }}
+                >
+                  {/* Door panel details */}
+                  <div className="absolute left-4 top-4 bottom-4 w-1 bg-gradient-to-b from-transparent via-white/5 to-transparent" />
+                  <div className="absolute left-8 top-1/2 -translate-y-1/2 w-6 h-24 rounded-full bg-white/5" />
+                  <div className="absolute inset-4 border border-white/[0.03] rounded-sm" />
+                </div>
+              </div>
+              
+              {/* Main Content */}
+              <div className={`absolute inset-0 z-20 flex flex-col transition-all duration-1000 ${showContent ? 'opacity-100' : 'opacity-0'}`}>
+                
+                {/* MOBILE / PORTRAIT LAYOUT */}
+                <div className="md:hidden flex flex-col h-full pointer-events-auto">
+                  
+                  {/* Fullscreen Toggle (Top Right) */}
+                  <div className="absolute top-6 right-6 z-50">
+                    <button 
+                      onClick={() => {
+                        if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(e => {});
+                        else if (document.exitFullscreen) document.exitFullscreen().catch(e => {});
+                      }}
+                      className="p-2 text-white/50 hover:text-white transition-colors bg-white/5 rounded-full backdrop-blur-sm"
+                    >
+                      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                      </svg>
+                    </button>
+                  </div>
+
+                  {/* Top Section - Floor Indicator (HIDDEN IN LANDSCAPE to save space) */}
+                  <div className="pt-8 pb-4 flex justify-center landscape:hidden">
+                    <div className="relative">
+                      <div className="w-20 h-10 bg-black/80 border border-amber-500/30 rounded-sm flex items-center justify-center shadow-[0_0_20px_rgba(251,191,36,0.2)]">
+                        <span className="text-amber-400 text-2xl font-mono font-bold tracking-wider" style={{ textShadow: '0 0 10px rgba(251,191,36,0.5)' }}>03</span>
+                      </div>
+                      <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-12 h-0.5 bg-gradient-to-r from-transparent via-amber-500/50 to-transparent" />
+                    </div>
+                  </div>
+                  
+                  {/* Middle Section - Title & Elevator Visual */}
+                  <div className="flex-1 flex flex-col items-center justify-center px-6 min-h-0 overflow-y-auto landscape:justify-center">
+                    
+                    {/* Elevator Frame Visual (HIDDEN IN LANDSCAPE to save space) */}
+                    <div className="relative mb-8 landscape:hidden" style={{ animationDelay: '0.3s' }}>
+                      <div className="w-40 h-56 border-4 border-[#2a2a2a] rounded-t-lg bg-gradient-to-b from-[#1a1a1a] to-[#0f0f0f] shadow-[inset_0_0_30px_rgba(0,0,0,0.8)]">
+                        {/* Interior glow */}
+                        <div className="absolute inset-2 bg-gradient-to-b from-amber-500/5 to-transparent rounded-t" />
+                        
+                        {/* Floor indicator inside */}
+                        <div className="absolute top-3 left-1/2 -translate-x-1/2 w-16 h-6 bg-black rounded-sm border border-amber-500/20 flex items-center justify-center">
+                          <span className="text-amber-400/80 text-sm font-mono">▲ 03</span>
+                        </div>
+                        
+                        {/* Mini doors */}
+                        <div className="absolute bottom-0 left-2 right-2 top-12 flex gap-0.5">
+                          <div className="flex-1 bg-gradient-to-r from-[#333] to-[#2a2a2a] rounded-t-sm border-t border-l border-white/5" />
+                          <div className="flex-1 bg-gradient-to-l from-[#333] to-[#2a2a2a] rounded-t-sm border-t border-r border-white/5" />
+                        </div>
+                        
+                        {/* Button panel */}
+                        <div className="absolute -right-6 top-1/2 -translate-y-1/2 w-4 h-20 bg-[#1a1a1a] rounded-r border border-white/5 flex flex-col items-center justify-center gap-2 py-2">
+                          <div className="w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.8)]" />
+                          <div className="w-2 h-2 rounded-full bg-white/20" />
+                          <div className="w-2 h-2 rounded-full bg-white/20" />
+                        </div>
+                      </div>
+                      
+                      {/* Floor reflection */}
+                      <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-48 h-4 bg-gradient-to-t from-transparent to-amber-500/10 blur-sm" />
+                    </div>
+                    
+                    {/* Title (Always Visible) */}
+                    <div className="text-center mb-6 landscape:mb-4 flex-shrink-0">
+                      <p className="text-amber-500/50 text-xs uppercase tracking-[0.5em] mb-2 font-light landscape:hidden">Bem-vindo ao</p>
+                      
+                      {/* Portrait Title */}
+                      <div className="landscape:hidden">
+                        <h1 className="text-5xl font-black text-white mb-1" style={{ textShadow: '0 0 40px rgba(255,255,255,0.1)' }}>
+                          THE NORMAL
+                        </h1>
+                        <h2 className="text-3xl font-thin text-amber-400 tracking-[0.3em] uppercase" style={{ textShadow: '0 0 20px rgba(251,191,36,0.3)' }}>
+                          ELEVATOR
+                        </h2>
+                      </div>
+
+                      {/* Landscape Title - Single Line */}
+                      <div className="hidden landscape:flex items-center justify-center gap-2">
+                        <h1 className="text-3xl font-black text-white" style={{ textShadow: '0 0 20px rgba(255,255,255,0.1)' }}>
+                          THE NORMAL
+                        </h1>
+                        <h2 className="text-3xl font-thin text-amber-400 tracking-widest uppercase" style={{ textShadow: '0 0 10px rgba(251,191,36,0.3)' }}>
+                          ELEVATOR
+                        </h2>
+                      </div>
+                    </div>
+                    
+                    {/* Tagline - Hidden in landscape */}
+                    <p className="text-white/30 text-center text-sm max-w-xs leading-relaxed landscape:hidden">
+                      Uma experiência liminal interativa.<br/>
+                      <span className="text-amber-500/40">Por favor, permaneça calmo.</span>
+                    </p>
+
+                    {/* Landscape Button - Visible only in landscape, placed right under title */}
+                    <div className="hidden landscape:block w-full max-w-xs mt-2">
+                      <button 
+                        onClick={onPlay}
+                        className="group relative w-full overflow-hidden rounded-lg transition-all duration-500 active:scale-[0.98]"
+                      >
+                        {/* Button glow */}
+                        <div className="absolute -inset-1 bg-gradient-to-r from-amber-500/50 via-yellow-400/50 to-amber-500/50 rounded-lg blur-lg opacity-50 group-hover:opacity-100 transition-opacity duration-500" />
+                        
+                        {/* Button body */}
+                        <div className="relative bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 rounded-lg">
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
+                          <div className="relative flex items-center justify-center gap-3 px-8 py-4 text-black font-bold text-base tracking-widest">
+                            <span className="group-hover:tracking-[0.3em] transition-all duration-300">ENTRAR</span>
+                            <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="currentColor" viewBox="0 0 24 24">
+                              <path d="M13.025 1l-2.847 2.828 6.176 6.176h-16.354v3.992h16.354l-6.176 6.176 2.847 2.828 10.975-11z"/>
+                            </svg>
+                          </div>
+                        </div>
+                      </button>
+                    </div>
+
+                  </div>
+                  
+                  {/* Bottom Section - Play Button (STICKY) - Hidden in Landscape */}
+                  <div className="p-6 pb-10 sticky bottom-0 bg-gradient-to-t from-black via-black/90 to-transparent z-40 landscape:hidden">
+                    <button 
+                      onClick={onPlay}
+                      className="group relative w-full overflow-hidden rounded-lg transition-all duration-500 active:scale-[0.98]"
+                    >
+                      {/* Button glow */}
+                      <div className="absolute -inset-1 bg-gradient-to-r from-amber-500/50 via-yellow-400/50 to-amber-500/50 rounded-lg blur-lg opacity-50 group-hover:opacity-100 transition-opacity duration-500" />
+                      
+                      {/* Button body */}
+                      <div className="relative bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 rounded-lg">
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
+                        <div className="relative flex items-center justify-center gap-3 px-8 py-5 text-black font-bold text-lg tracking-widest">
+                          <span className="group-hover:tracking-[0.3em] transition-all duration-300">ENTRAR</span>
+                          <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M13.025 1l-2.847 2.828 6.176 6.176h-16.354v3.992h16.354l-6.176 6.176 2.847 2.828 10.975-11z"/>
+                          </svg>
+                        </div>
+                      </div>
+                    </button>
+                    
+                    {/* Control hints */}
+                    <div className="flex justify-center gap-6 mt-4 text-white/20 text-xs">
+                      <span className="flex items-center gap-2">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11" /></svg>
+                        Toque
+                      </span>
+                      <span className="flex items-center gap-2">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15.536a5 5 0 001.414 1.414m2.828-9.9a9 9 0 012.172-1.414" /></svg>
+                        Fones
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* DESKTOP / LANDSCAPE LAYOUT */}
+                <div className="hidden md:flex h-full items-center justify-center pointer-events-auto">
+                  <div className="flex items-center gap-10 lg:gap-24 max-w-6xl mx-auto px-8">
+                    
+                    {/* Left Side - Elevator Visual */}
+                    <div className="relative animate-fade-in" style={{ animationDelay: '0.5s' }}>
+                      {/* Large elevator frame */}
+                      <div className="w-64 h-96 border-8 border-[#2a2a2a] rounded-t-2xl bg-gradient-to-b from-[#1a1a1a] to-[#0a0a0a] shadow-[inset_0_0_60px_rgba(0,0,0,0.9),0_0_80px_rgba(0,0,0,0.5)]">
+                        
+                        {/* Interior ambient light */}
+                        <div className="absolute inset-4 bg-gradient-to-b from-amber-500/10 via-transparent to-transparent rounded-t-xl" />
+                        
+                        {/* Floor display */}
+                        <div className="absolute top-6 left-1/2 -translate-x-1/2 w-24 h-10 bg-black/90 rounded border border-amber-500/30 flex items-center justify-center shadow-[0_0_20px_rgba(251,191,36,0.3)]">
+                          <span className="text-amber-400 text-2xl font-mono font-bold" style={{ textShadow: '0 0 15px rgba(251,191,36,0.8)' }}>▲ 03</span>
+                        </div>
+                        
+                        {/* Elevator doors (inside frame) */}
+                        <div className="absolute bottom-0 left-4 right-4 top-20 flex gap-1 overflow-hidden rounded-t">
+                          <div className="flex-1 bg-gradient-to-r from-[#3a3a3a] via-[#404040] to-[#353535] border-t border-l border-white/10 shadow-inner">
+                            <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-black/30 to-transparent" />
+                          </div>
+                          <div className="w-0.5 bg-black/50" />
+                          <div className="flex-1 bg-gradient-to-l from-[#3a3a3a] via-[#404040] to-[#353535] border-t border-r border-white/10 shadow-inner">
+                            <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-black/30 to-transparent" />
+                          </div>
+                        </div>
+                        
+                        {/* Ceiling light reflection */}
+                        <div className="absolute top-20 left-1/2 -translate-x-1/2 w-32 h-16 bg-gradient-to-b from-amber-400/20 to-transparent blur-xl" />
+                      </div>
+                      
+                      {/* External call button panel */}
+                      <div className="absolute -right-12 top-1/2 -translate-y-1/2 w-8 h-32 bg-[#1a1a1a] rounded-r-lg border border-white/5 flex flex-col items-center justify-center gap-3 shadow-xl">
+                        <div className="w-5 h-5 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 shadow-[0_0_15px_rgba(251,191,36,1)] animate-pulse" />
+                        <div className="w-5 h-5 rounded-full bg-white/10 border border-white/10" />
+                        <div className="w-4 h-8 bg-black/50 rounded-sm mt-2 flex flex-col items-center justify-center">
+                          <div className="w-2 h-0.5 bg-amber-500/50 mb-0.5" />
+                          <div className="w-2 h-0.5 bg-white/20" />
+                        </div>
+                      </div>
+                      
+                      {/* Floor reflection */}
+                      <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 w-80 h-8 bg-gradient-to-t from-transparent to-amber-500/10 blur-md" />
+                      
+                      {/* Frame edges */}
+                      <div className="absolute -left-2 top-0 bottom-0 w-2 bg-gradient-to-r from-[#333] to-[#222] rounded-l" />
+                      <div className="absolute -right-2 top-0 bottom-0 w-2 bg-gradient-to-l from-[#333] to-[#222] rounded-r" />
+                    </div>
+                    
+                    {/* Right Side - Content */}
+                    <div className="flex-1 max-w-lg flex flex-col justify-center">
+                      
+                      {/* Floor badge */}
+                      <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 border border-amber-500/20 rounded-full mb-4 animate-fade-in-up" style={{ animationDelay: '0.7s' }}>
+                        <div className="w-2 h-2 bg-amber-400 rounded-full animate-pulse" />
+                        <span className="text-amber-400/80 text-xs font-mono uppercase tracking-wider">Andar 03 • Saguão</span>
+                      </div>
+                      
+                      {/* Title - Consolidated to Single Line */}
+                      <div className="mb-6 animate-fade-in-up" style={{ animationDelay: '0.8s' }}>
+                        <p className="text-amber-500/40 text-sm uppercase tracking-[0.5em] mb-2 font-light">Bem-vindo ao</p>
+                        <h1 className="text-5xl lg:text-7xl font-black text-white leading-none mb-1" style={{ textShadow: '0 0 60px rgba(255,255,255,0.1)' }}>
+                          THE <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-amber-400 to-amber-200">NORMAL</span>
+                        </h1>
+                        <h2 className="text-3xl lg:text-5xl font-extralight text-white/80 tracking-[0.4em] uppercase">
+                          ELEVATOR
+                        </h2>
+                      </div>
+                      
+                      {/* Description REMOVED */}
+                      
+                      {/* Play Button - Moved UP to replace text position */}
+                      <div className="animate-fade-in-up mt-2" style={{ animationDelay: '1s' }}>
+                        <button 
+                          onClick={onPlay}
+                          className="group relative overflow-hidden rounded-xl transition-all duration-500 hover:scale-[1.02] active:scale-[0.98]"
+                        >
+                          {/* Animated border */}
+                          <div className="absolute -inset-0.5 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 rounded-xl opacity-70 group-hover:opacity-100 blur-sm transition-opacity" />
+                          
+                          {/* Button body */}
+                          <div className="relative bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 rounded-xl">
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent rounded-xl" />
+                            <div className="relative flex items-center gap-4 px-12 py-5 text-black font-bold text-xl">
+                              <span className="tracking-[0.2em] group-hover:tracking-[0.3em] transition-all duration-500">ENTRAR NO SAGUÃO</span>
+                              <svg className="w-6 h-6 group-hover:translate-x-2 transition-transform duration-300" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M13.025 1l-2.847 2.828 6.176 6.176h-16.354v3.992h16.354l-6.176 6.176 2.847 2.828 10.975-11z"/>
+                              </svg>
+                            </div>
+                          </div>
+                        </button>
+                        
+                        {/* Control hints */}
+                        <div className="flex gap-8 mt-6 text-white/20 text-sm">
+                          <span className="flex items-center gap-2">
+                            <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-xs font-mono">WASD</kbd>
+                            Mover
+                          </span>
+                          <span className="flex items-center gap-2">
+                            <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-xs font-mono">MOUSE</kbd>
+                            Olhar
+                          </span>
+                          <span className="flex items-center gap-2">
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728" /></svg>
+                            Fones
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                  </div>
+                </div>
+                
+                {/* Corner UI Elements */}
+                <div className="absolute top-6 left-6 text-white/10 text-xs font-mono hidden md:flex items-center gap-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                  SISTEMA ATIVO
+                </div>
+                <div className="absolute top-6 right-6 text-white/10 text-xs font-mono hidden md:flex items-center gap-2">
+                  <span className="text-red-500">●</span> REC
+                  <span className="ml-4">CAM_01</span>
+                </div>
+                <div className="absolute bottom-6 left-6 text-white/10 text-xs font-mono hidden md:block">
+                  © 2024 LIMINAL SYSTEMS
+                </div>
+                <div className="absolute bottom-6 right-6 text-white/10 text-xs font-mono hidden md:block">
+                  v1.0.3
+                </div>
+                
+              </div>
+              
+              {/* Scanlines overlay */}
+              <div className="absolute inset-0 pointer-events-none opacity-[0.02]" style={{
+                backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.03) 2px, rgba(255,255,255,0.03) 4px)'
+              }} />
+              
+            </div>
+        );
+      };
+
+      const MAX_JOYSTICK_RADIUS = 50; 
+      const App = () => {
+        const [hasStarted, setHasStarted] = useState(false);
+        const [audioCtx, setAudioCtx] = useState(null);
+        const [muted, setMuted] = useState(false);
+        const [zoomLevel, setZoomLevel] = useState(4.0);
+        const prevPinchDist = useRef(null);
+        const moveInput = useRef({ x: 0, y: 0 }); const lookInput = useRef({ x: 0, y: 0 });
+        const sharedPlayerPositionRef = useRef(new Vector3(0, 0, 8)); 
+        const [elevatorTimer, setElevatorTimer] = useState(null); const [doorsClosed, setDoorsClosed] = useState(false);
+        const [currentLevel, setCurrentLevel] = useState(0); const [overlayOpacity, setOverlayOpacity] = useState(0);
+        const [houseDoorOpen, setHouseDoorOpen] = useState(false); const [canInteractDoor, setCanInteractDoor] = useState(false); const [doorSoundTrigger, setDoorSoundTrigger] = useState(0);
+        const npcPositionRef = useRef(new Vector3(5, 0, 5)); const [canInteractNPC, setCanInteractNPC] = useState(false); const [dialogueOpen, setDialogueOpen] = useState(false); const [dialogueNode, setDialogueNode] = useState('start');
+        
+        const handlePlayerEnterElevator = () => { if (elevatorTimer === null && !doorsClosed && currentLevel === 0) { setElevatorTimer(5); } };
+        const handleInteractionUpdate = useCallback((canInteract) => { setCanInteractDoor(prev => { if (prev !== canInteract) return canInteract; return prev; }); }, []);
+        const handleNpcInteractionUpdate = useCallback((canInteract) => { setCanInteractNPC(prev => { if (prev !== canInteract) return canInteract; return prev; }); }, []);
+        const handleOpenDoor = () => { setHouseDoorOpen(true); setCanInteractDoor(false); };
+        const handleStartDialogue = () => { setDialogueNode('start'); setDialogueOpen(true); setCanInteractNPC(false); };
+        const handleDialogueOption = (next) => { setDialogueNode(next); };
+        const handleCloseDialogue = () => { setDialogueOpen(false); };
+        const handleStartGame = () => { const AudioContext = window.AudioContext || window.webkitAudioContext; const ctx = new AudioContext(); ctx.resume(); setAudioCtx(ctx); setHasStarted(true); if (typeof window !== 'undefined' && window.matchMedia("(min-width: 1024px)").matches) { document.body.requestPointerLock(); } };
+
+        useEffect(() => {
+          let timerId;
+          if (elevatorTimer !== null && elevatorTimer > 0) {
+              timerId = setTimeout(() => { setElevatorTimer(prev => (prev !== null ? prev - 1 : null)); }, 1000);
+              if (doorsClosed) {
+                  if (elevatorTimer === 19) { setOverlayOpacity(1); }
+                  if (elevatorTimer === 18) { if (currentLevel === 0) { setCurrentLevel(1); } }
+                  if (elevatorTimer === 17) { setOverlayOpacity(0); }
+              }
+          } else if (elevatorTimer === 0) {
+              if (!doorsClosed) { setDoorsClosed(true); setElevatorTimer(20); setDoorSoundTrigger(prev => prev + 1); } 
+              else { setDoorsClosed(false); setElevatorTimer(null); setOverlayOpacity(0); }
+          }
+          return () => clearTimeout(timerId);
+        }, [elevatorTimer, doorsClosed, currentLevel]);
+        
+        const [joystickVisual, setJoystickVisual] = useState({ active: false, originX: 0, originY: 0, currentX: 0, currentY: 0 });
+        const isDesktop = typeof window !== 'undefined' && window.matchMedia("(min-width: 1024px)").matches;
+        const activePointers = useRef(new Map());
+
+        const handlePointerDown = (e) => {
+          if (!hasStarted) return;
+          if (isDesktop) { if (document.pointerLockElement !== document.body && !dialogueOpen) { document.body.requestPointerLock(); } return; }
+          if (dialogueOpen) return;
+          e.preventDefault(); e.stopPropagation();
+          const { pointerId, clientX, clientY } = e; const screenW = window.innerWidth; const screenH = window.innerHeight;
+          const isPortrait = screenH > screenW; const zoneLimit = isPortrait ? 0.5 : 0.4;
+          if (clientX < screenW * zoneLimit) {
+            const hasMove = Array.from(activePointers.current.values()).some((p) => p.type === 'move');
+            activePointers.current.set(pointerId, { type: hasMove ? 'aux' : 'move', startX: clientX, startY: clientY, currX: clientX, currY: clientY });
+            if (!hasMove) { setJoystickVisual({ active: true, originX: clientX, originY: clientY, currentX: 0, currentY: 0 }); moveInput.current = { x: 0, y: 0 }; }
+          } else {
+            const hasLook = Array.from(activePointers.current.values()).some((p) => p.type === 'look');
+            activePointers.current.set(pointerId, { type: hasLook ? 'aux' : 'look', startX: clientX, startY: clientY, currX: clientX, currY: clientY });
+          }
+          if (activePointers.current.size === 2) { prevPinchDist.current = null; }
+        };
+
+        const handlePointerMove = (e) => {
+          if (!hasStarted) return;
+          if (isDesktop) { if (document.pointerLockElement === document.body && !dialogueOpen) { lookInput.current.x += e.movementX; lookInput.current.y += e.movementY; } return; }
+          e.preventDefault(); e.stopPropagation();
+          const { pointerId, clientX, clientY } = e; const pointer = activePointers.current.get(pointerId);
+          if (pointer) {
+            pointer.currX = clientX; pointer.currY = clientY;
+            const types = Array.from(activePointers.current.values()).map(p => p.type);
+            const isDualStick = types.includes('move') && types.includes('look');
+            const isPinching = activePointers.current.size === 2 && !isDualStick;
+            if (!isPinching) {
+                if (pointer.type === 'move') {
+                  const dx = clientX - pointer.startX; const dy = clientY - pointer.startY;
+                  const dist = Math.sqrt(dx*dx + dy*dy); const angle = Math.atan2(dy, dx);
+                  const cappedDist = Math.min(dist, MAX_JOYSTICK_RADIUS);
+                  const visualX = Math.cos(angle) * cappedDist; const visualY = Math.sin(angle) * cappedDist;
+                  let normX = visualX / MAX_JOYSTICK_RADIUS; let normY = visualY / MAX_JOYSTICK_RADIUS;
+                  moveInput.current = { x: normX, y: normY };
+                  setJoystickVisual(prev => ({ ...prev, currentX: normX, currentY: normY }));
+                } else if (pointer.type === 'look') {
+                  const deltaX = clientX - pointer.startX; const deltaY = clientY - pointer.startY;
+                  const SENSITIVITY = 0.006; lookInput.current.x += deltaX * SENSITIVITY; lookInput.current.y += deltaY * SENSITIVITY;
+                  pointer.startX = clientX; pointer.startY = clientY;
+                }
+            }
+            if (isPinching && !dialogueOpen) {
+                const points = Array.from(activePointers.current.values()); const p1 = points[0]; const p2 = points[1];
+                const dist = Math.sqrt(Math.pow(p1.currX - p2.currX, 2) + Math.pow(p1.currY - p2.currY, 2));
+                if (prevPinchDist.current !== null) { const delta = dist - prevPinchDist.current; const zoomSpeed = 0.02; setZoomLevel(prev => Math.min(Math.max(prev - delta * zoomSpeed, 0), 10.0)); }
+                prevPinchDist.current = dist;
+            }
+          }
+        };
+
+        const handlePointerUp = (e) => {
+          if (!hasStarted) return; if (isDesktop) return; e.preventDefault(); const { pointerId } = e;
+          const pointer = activePointers.current.get(pointerId);
+          if (pointer) { if (pointer.type === 'move') { moveInput.current = { x: 0, y: 0 }; setJoystickVisual(prev => ({ ...prev, active: false })); } activePointers.current.delete(pointerId); }
+          if (activePointers.current.size < 2) { prevPinchDist.current = null; }
+        };
+
+        const handleWheel = (e) => { if (!hasStarted || dialogueOpen) return; setZoomLevel(prev => Math.min(Math.max(prev + e.deltaY * 0.01, 0), 10.0)); };
+
+        useEffect(() => {
+          if (!isDesktop) return; if (!hasStarted) return;
+          if (dialogueOpen) { document.exitPointerLock(); return; }
+          const keys = { w: false, a: false, s: false, d: false };
+          const updateInput = () => { let x = 0; let y = 0; if (keys.w) y -= 1; if (keys.s) y += 1; if (keys.a) x -= 1; if (keys.d) x += 1; moveInput.current.x = x; moveInput.current.y = y; };
+          const handleKeyDown = (e) => { if (dialogueOpen) return; switch(e.key.toLowerCase()) { case 'w': keys.w = true; break; case 'a': keys.a = true; break; case 's': keys.s = true; break; case 'd': keys.d = true; break; } updateInput(); };
+          const handleKeyUp = (e) => { switch(e.key.toLowerCase()) { case 'w': keys.w = false; break; case 'a': keys.a = false; break; case 's': keys.s = false; break; case 'd': keys.d = false; break; } updateInput(); };
+          window.addEventListener('keydown', handleKeyDown); window.addEventListener('keyup', handleKeyUp);
+          return () => { window.removeEventListener('keydown', handleKeyDown); window.removeEventListener('keyup', handleKeyUp); };
+        }, [isDesktop, hasStarted, dialogueOpen]);
+
+        return (
+          <div className="w-full h-full relative overflow-hidden select-none" style={{ touchAction: 'none', backgroundColor: '#000000' }} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onPointerLeave={handlePointerUp} onWheel={handleWheel}>
+            <LiminalAudioEngine doorTrigger={doorSoundTrigger} audioContext={audioCtx} muted={muted} />
+            <div className="absolute inset-0 z-30 bg-black pointer-events-none transition-opacity duration-1000 ease-in-out" style={{ opacity: overlayOpacity }} />
+            <Canvas shadows camera={{ fov: 75, near: 0.1, far: 100 }}>
+              <Suspense fallback={<Html center><div className="text-white font-mono">Loading...</div></Html>}>
+                  <World timer={elevatorTimer} doorsClosed={doorsClosed} level={currentLevel} houseDoorOpen={houseDoorOpen} npcPositionRef={npcPositionRef} isPaused={dialogueOpen} playerPositionRef={sharedPlayerPositionRef} />
+                  <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueOpen={dialogueOpen} sharedPositionRef={sharedPlayerPositionRef} />
+              </Suspense>
+            </Canvas>
+            <Loader />
+            {!hasStarted && <MainMenu onPlay={handleStartGame} />}
+            {hasStarted && ( <div className="absolute top-4 right-4 z-50 flex gap-4"><button onClick={() => setMuted(!muted)} className="text-white bg-black/50 p-2 rounded-full hover:bg-white/20 transition-colors pointer-events-auto">{muted ? (<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8"><path strokeLinecap="round" strokeLinejoin="round" d="M17.25 9.75 19.5 12m0 0 2.25 2.25M19.5 12l2.25-2.25M19.5 12l-2.25 2.25m-10.5-6 4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" /></svg>) : (<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8"><path strokeLinecap="round" strokeLinejoin="round" d="M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" /></svg>)}</button></div> )}
+            {hasStarted && !isDesktop && !dialogueOpen && ( <><VisualJoystick active={joystickVisual.active} x={joystickVisual.currentX} y={joystickVisual.currentY} origin={{ x: joystickVisual.originX, y: joystickVisual.originY }} /><div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 w-full text-center px-4 text-white/50 text-sm font-mono pointer-events-none no-select">Left: Drag to Move • Right: Drag to Look</div></> )}
+            {hasStarted && canInteractDoor && !houseDoorOpen && !dialogueOpen && ( <div className="absolute bottom-20 left-1/2 transform -translate-x-1/2 z-50"><button onClick={handleOpenDoor} className="bg-white text-black px-6 py-3 rounded-full font-bold shadow-lg animate-bounce active:scale-95 transition-transform" style={{ touchAction: 'manipulation' }}>OPEN DOOR</button></div> )}
+            {hasStarted && canInteractNPC && !dialogueOpen && ( <div className="absolute bottom-32 left-1/2 transform -translate-x-1/2 z-50"><button onClick={handleStartDialogue} className="bg-yellow-400 text-black px-6 py-3 rounded-full font-bold shadow-lg animate-bounce active:scale-95 transition-transform tracking-widest" style={{ touchAction: 'manipulation' }}>FALAR</button></div> )}
+            {dialogueOpen && ( <DialogueOverlay nodeKey={dialogueNode} onOptionSelect={handleDialogueOption} onClose={handleCloseDialogue} /> )}
+          </div>
+        );
+      };
+
+      const rootElement = document.getElementById('root');
+      if (!rootElement) { throw new Error("Could not find root element to mount to"); }
+      const root = ReactDOM.createRoot(rootElement);
+      root.render( <React.StrictMode> <App /> </React.StrictMode> );
+    </script>
+  </body>
+</html>
