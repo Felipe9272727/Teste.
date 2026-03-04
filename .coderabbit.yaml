@@ -1,11 +1,12 @@
-# .coderabbit.yaml - Configuração do CodeRabbit para Jogo HTML/JS
+# .coderabbit.yaml - FOCO TOTAL EM BUGS E PERFORMANCE
 
 language: "pt-BR"
 
 tone_instructions: >
-  Seja direto e prático. Use linguagem informal brasileira.
-  Foque em melhorias de performance, jogabilidade e código limpo.
-  Dê exemplos de código quando sugerir mudanças.
+  Seja extremamente técnico e direto. Foco TOTAL em encontrar bugs,
+  memory leaks, problemas de performance e causas de lag.
+  Sempre forneça código corrigido, não só aponte o problema.
+  Priorize: crítico > alto > médio > baixo.
 
 early_access: true
 
@@ -13,49 +14,84 @@ reviews:
   profile: "assertive"
   request_changes_workflow: true
   high_level_summary: true
-  high_level_summary_placeholder: "@coderabbitai summary"
-  auto_title_placeholder: "[CodeRabbit]"
   poem: false
   review_status: true
   collapse_walkthrough: false
-  sequence_diagrams: true
+  sequence_diagrams: false
   changed_files_summary: true
   
   path_instructions:
-    - path: "**/*.html"
-      instructions: >
-        Analise a estrutura HTML do jogo:
-        - Semântica correta dos elementos
-        - Otimização do Canvas se usado
-        - Acessibilidade básica
-        - Meta tags para performance
-        
     - path: "**/*.js"
       instructions: >
-        Foque em aspectos de desenvolvimento de jogos:
-        - Game loop otimizado (requestAnimationFrame)
-        - Gerenciamento de memória (evitar memory leaks)
-        - Performance de renderização
-        - Detecção de colisão eficiente
-        - Organização do código (classes, módulos)
-        - Input handling responsivo
-        - Estado do jogo bem estruturado
-        - Evitar criar objetos no loop principal
+        ANÁLISE DE PERFORMANCE CRÍTICA:
+        
+        🔴 MEMORY LEAKS - PRIORIDADE MÁXIMA:
+        - Objetos criados dentro de loops (new Object, [], {})
+        - Event listeners não removidos
+        - setInterval/setTimeout sem clear
+        - Referências a objetos que deveriam ser deletados
+        - Arrays que só crescem e nunca limpam
+        - Closures segurando referências desnecessárias
+        
+        🔴 GAME LOOP - PRIORIDADE MÁXIMA:
+        - Uso incorreto de requestAnimationFrame
+        - Delta time mal calculado
+        - Múltiplos loops rodando
+        - Lógica pesada dentro do render loop
+        - Falta de fps cap quando necessário
+        
+        🔴 RENDERIZAÇÃO - PRIORIDADE ALTA:
+        - Canvas não otimizado
+        - Redesenho desnecessário de elementos estáticos
+        - Falta de layering/buffer
+        - getContext() chamado todo frame
+        - Imagens não cacheadas
+        - Falta de object pooling
+        
+        🔴 COLISÃO - PRIORIDADE ALTA:
+        - Algoritmos O(n²) desnecessários
+        - Falta de spatial partitioning
+        - Checks de colisão redundantes
+        - Cálculos de distância sem otimização
+        
+        🔴 BUGS LÓGICOS - PRIORIDADE ALTA:
+        - Race conditions
+        - Estados inconsistentes
+        - Divisão por zero
+        - Null/undefined não tratados
+        - Off-by-one errors
+        - Comparações erradas (== vs ===)
+        - Escopo de variáveis (var vs let)
+        
+        🔴 INPUT LAG - PRIORIDADE ALTA:
+        - Event handlers pesados
+        - Falta de debounce/throttle
+        - Blocking no main thread
+        
+        SEMPRE FORNEÇA:
+        1. Localização exata do problema
+        2. Por que causa lag/bug
+        3. Código corrigido pronto pra usar
+        
+    - path: "**/*.html"
+      instructions: >
+        Verifique apenas:
+        - Scripts bloqueando renderização
+        - Ordem de carregamento incorreta
+        - Recursos não otimizados
         
     - path: "**/*.css"
       instructions: >
-        Verifique:
-        - Performance de animações (usar transform/opacity)
-        - Evitar repaints desnecessários
-        - Responsividade para diferentes telas
-        - GPU acceleration quando apropriado
+        Verifique apenas:
+        - Animações causando reflow/repaint
+        - Propriedades que não usam GPU
+        - Layout thrashing
 
   auto_review:
     enabled: true
     auto_incremental_review: true
     ignore_title_keywords:
       - "WIP"
-      - "DO NOT MERGE"
       - "wip"
     drafts: false
     base_branches:
@@ -69,8 +105,4 @@ chat:
 knowledge_base:
   opt_out: false
   learnings:
-    scope: "auto"
-  issues:
-    scope: "auto"
-  pull_requests:
     scope: "auto"
