@@ -166,7 +166,7 @@
     "three": "https://esm.sh/three@0.165.0",
     "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.16.8?deps=three@0.165.0,react@18.3.1,react-dom@18.3.1",
     "@react-three/drei": "https://esm.sh/@react-three/drei@9.108.0?deps=three@0.165.0,react@18.3.1,react-dom@18.3.1,@react-three/fiber@8.16.8",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/"
+    "react-dom/": "https://esm.sh/react-dom@18.3.1/"
   }
 }
 </script>
@@ -175,8 +175,6 @@
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-
     <script type="text/babel" data-type="module" data-presets="react,typescript">
       import React, { useState, useEffect, useRef, useCallback, Suspense, useMemo } from 'react';
       import ReactDOM from 'react-dom/client';
@@ -286,6 +284,7 @@
             elevator: { active: false, volume: 0.0, nextNoteTime: 0, beatCount: 0 }
         });
         const crossfadeRef = useRef({ active: false, startTime: 0, duration: 3.0, from: 'lobby', to: 'elevator' });
+        const brushBuffersRef = useRef({ accent: null, normal: null });
 
         const setupReverb = (ctx, destination) => {
             const convolver = ctx.createConvolver();
@@ -306,12 +305,21 @@
             return input;
         };
 
-        const playBrush = (ctx, dest, time, accent, vol = 1.0) => {
+        const createBrushBuffer = (ctx) => {
             const bufferSize = ctx.sampleRate * 0.05;
             const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
             const data = buffer.getChannelData(0);
             for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1);
-            const noise = ctx.createBufferSource(); noise.buffer = buffer;
+            return buffer;
+        };
+
+        const playBrush = (ctx, dest, time, accent, vol = 1.0) => {
+            if (!brushBuffersRef.current.normal) {
+                brushBuffersRef.current.normal = createBrushBuffer(ctx);
+                brushBuffersRef.current.accent = createBrushBuffer(ctx);
+            }
+            const noise = ctx.createBufferSource();
+            noise.buffer = accent ? brushBuffersRef.current.accent : brushBuffersRef.current.normal;
             const filter = ctx.createBiquadFilter(); filter.type = 'bandpass'; filter.frequency.value = accent ? 3000 : 2000;
             const gain = ctx.createGain(); gain.gain.setValueAtTime((accent ? 0.08 : 0.03) * vol, time); gain.gain.exponentialRampToValueAtTime(0.001, time + 0.04);
             noise.connect(filter); filter.connect(gain); gain.connect(dest); noise.start(time);
@@ -668,11 +676,11 @@
             <mesh position={[0.6, 0, 0.08]}><sphereGeometry args={[0.05, 8, 8]} /><meshStandardMaterial color="#FFD54F" metalness={0.4} roughness={0.2} /></mesh>
           </group>
       ));
-      const WallPanel = React.memo(({ x, z, rot }) => (
+      const WallPanel = React.memo(({ x, z, rot, floor = 3 }) => (
           <group position={[x, 2.2, z]} rotation={[0, rot, 0]}>
             <mesh receiveShadow><boxGeometry args={[2, 1.2, 0.05]} /><meshStandardMaterial color="#212121" roughness={0.2} /></mesh>
             <mesh position={[0, 0, 0.03]}><boxGeometry args={[1.8, 1.0, 0.01]} /><meshBasicMaterial color="#000000" /></mesh>
-            <Text position={[0, 0, 0.04]} fontSize={0.2} color="#00FF00" font="https://fonts.gstatic.com/s/roboto/v18/KFOmCnqEu92Fr1Mu4mxM.woff" anchorX="center" anchorY="middle">3</Text>
+            <Text position={[0, 0, 0.04]} fontSize={0.2} color="#00FF00" font="https://fonts.gstatic.com/s/roboto/v18/KFOmCnqEu92Fr1Mu4mxM.woff" anchorX="center" anchorY="middle">{floor.toString()}</Text>
           </group>
       ));
       const CallPanel = React.memo(({ x, z, rot }) => (
@@ -693,9 +701,12 @@
       const ElevatorDoors = React.memo(({ closed }) => {
           const leftDoorRef = useRef(null); const rightDoorRef = useRef(null);
           useFrame((state, delta) => {
+              if (!leftDoorRef.current || !rightDoorRef.current) return;
               const speed = 5.0 * delta; const targetLeft = closed ? -0.76 : -2.3; const targetRight = closed ? 0.76 : 2.3;
-              if (leftDoorRef.current) leftDoorRef.current.position.x = THREE.MathUtils.lerp(leftDoorRef.current.position.x, targetLeft, speed);
-              if (rightDoorRef.current) rightDoorRef.current.position.x = THREE.MathUtils.lerp(rightDoorRef.current.position.x, targetRight, speed);
+              const lx = leftDoorRef.current.position.x; const rx = rightDoorRef.current.position.x;
+              if (Math.abs(lx - targetLeft) < 0.001 && Math.abs(rx - targetRight) < 0.001) return;
+              leftDoorRef.current.position.x = THREE.MathUtils.lerp(lx, targetLeft, speed);
+              rightDoorRef.current.position.x = THREE.MathUtils.lerp(rx, targetRight, speed);
           });
           return (
               <group position={[0, 2.0, 2.92]}> 
@@ -810,7 +821,6 @@
                   <mesh rotation={[Math.PI/2, 0, 0]} position={[0, 5.95, 0]}><planeGeometry args={[7.8, 7.8]} /><meshStandardMaterial color="#FFFFFF" roughness={0.9} /></mesh>
                   <mesh position={[0, 3, -4]} castShadow receiveShadow><boxGeometry args={[8, 6, 0.2]} /><meshStandardMaterial color={COLORS.houseWall} roughness={0.8} /></mesh>
                   <mesh position={[-4, 3, 0]} rotation={[0, Math.PI/2, 0]} castShadow receiveShadow><boxGeometry args={[8, 6, 0.2]} /><meshStandardMaterial color={COLORS.houseWall} roughness={0.8} /></mesh>
-                  <mesh position={[-4, 3, 0]} rotation={[0, Math.PI/2, 0]} castShadow receiveShadow><boxGeometry args={[8, 6, 0.2]} /><meshStandardMaterial color={COLORS.houseWall} roughness={0.8} /></mesh>
                   <mesh position={[4, 3, 0]} rotation={[0, Math.PI/2, 0]} castShadow receiveShadow><boxGeometry args={[8, 6, 0.2]} /><meshStandardMaterial color={COLORS.houseWall} roughness={0.8} /></mesh>
                   <mesh position={[-2.35, 3, 4]} castShadow receiveShadow><boxGeometry args={[3.3, 6, 0.2]} /><meshStandardMaterial color={COLORS.houseWall} roughness={0.8} /></mesh>
                   <mesh position={[2.35, 3, 4]} castShadow receiveShadow><boxGeometry args={[3.3, 6, 0.2]} /><meshStandardMaterial color={COLORS.houseWall} roughness={0.8} /></mesh>
@@ -917,6 +927,13 @@
                     if (walkAction) { walkAction.reset().fadeIn(0.5).play(); idleAction?.fadeOut(0.5); }
                 }
             } else if (ai.state === 'Walking') {
+                const distToPlayer = playerPositionRef?.current ? pos.distanceTo(playerPositionRef.current) : Infinity;
+                if (distToPlayer < 1.2) {
+                    ai.state = 'Idle'; ai.timer = 1 + Math.random() * 2;
+                    const walkAction = actions['Walking']; const idleAction = actions['Idle'];
+                    if (idleAction) { idleAction.reset().fadeIn(0.5).play(); walkAction?.fadeOut(0.5); }
+                    return;
+                }
                 const direction = _npcDirection.current.subVectors(ai.target, pos); direction.y = 0; const dist = direction.length();
                 if (dist < 0.5) {
                     ai.state = 'Idle'; ai.timer = 2 + Math.random() * 4;
@@ -1028,17 +1045,20 @@
             if (w[0]) w[0].name = "Walking"; if (i[0]) i[0].name = "Idle";
             return [...i, ...w];
         }, [walkingAnims, idleAnims]), scene);
-        const hipsRef = useRef(null); const currentOpacity = useRef(1.0);
+        const hipsRef = useRef(null); const currentOpacity = useRef(1.0); const meshesRef = useRef([]);
         useEffect(() => {
+           meshesRef.current = [];
            scene.traverse((child) => {
-             if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; if (child.material) { child.material.transparent = true; child.material.depthWrite = true; child.material.alphaTest = 0; child.material.side = THREE.DoubleSide; child.material.metalness = 0.0; child.material.roughness = 1.0; child.material.needsUpdate = true; } }
+             if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; meshesRef.current.push(child); if (child.material) { child.material.transparent = true; child.material.depthWrite = true; child.material.alphaTest = 0; child.material.side = THREE.DoubleSide; child.material.metalness = 0.0; child.material.roughness = 1.0; child.material.needsUpdate = true; } }
              if ((child.isBone || child.type === 'Bone') && !hipsRef.current) { if (child.name.toLowerCase().includes('hips') || child.name.toLowerCase().includes('root')) hipsRef.current = child; }
            });
         }, [scene]);
         useFrame((state, delta) => {
             if (hipsRef.current) { hipsRef.current.position.x = 0; hipsRef.current.position.z = 0; }
             const targetOpacity = visible ? 1.0 : 0.0; currentOpacity.current = THREE.MathUtils.lerp(currentOpacity.current, targetOpacity, 8 * delta);
-            scene.traverse((child) => { if (child.isMesh && child.material) { child.material.opacity = currentOpacity.current; child.visible = currentOpacity.current > 0.01; } });
+            if (Math.abs(currentOpacity.current - targetOpacity) > 0.001) {
+                for (const mesh of meshesRef.current) { if (mesh.material) { mesh.material.opacity = currentOpacity.current; mesh.visible = currentOpacity.current > 0.01; } }
+            }
         });
         useEffect(() => {
            const action = actions[animation === 'Walking' ? 'Walking' : 'Idle']; const other = actions[animation === 'Walking' ? 'Idle' : 'Walking'];
@@ -1491,11 +1511,11 @@
         const handlePlayerEnterElevator = () => { if (elevatorTimer === null && !doorsClosed && currentLevel === 0) { setElevatorTimer(5); } };
         const handleInteractionUpdate = useCallback((canInteract) => { setCanInteractDoor(prev => { if (prev !== canInteract) return canInteract; return prev; }); }, []);
         const handleNpcInteractionUpdate = useCallback((canInteract) => { setCanInteractNPC(prev => { if (prev !== canInteract) return canInteract; return prev; }); }, []);
-        const handleOpenDoor = () => { setHouseDoorOpen(true); setCanInteractDoor(false); };
-        const handleStartDialogue = () => { setDialogueNode('start'); setDialogueOpen(true); setCanInteractNPC(false); };
+        const handleOpenDoor = () => { if (navigator.vibrate) navigator.vibrate(50); setHouseDoorOpen(true); setCanInteractDoor(false); };
+        const handleStartDialogue = () => { if (navigator.vibrate) navigator.vibrate(30); setDialogueNode('start'); setDialogueOpen(true); setCanInteractNPC(false); };
         const handleDialogueOption = (next) => { setDialogueNode(next); };
         const handleCloseDialogue = () => { setDialogueOpen(false); };
-        const handleStartGame = () => { const AudioContext = window.AudioContext || window.webkitAudioContext; const ctx = new AudioContext(); ctx.resume(); setAudioCtx(ctx); setHasStarted(true); if (typeof window !== 'undefined' && window.matchMedia("(min-width: 1024px)").matches) { document.body.requestPointerLock(); } };
+        const handleStartGame = () => { const AudioContext = window.AudioContext || window.webkitAudioContext; const ctx = new AudioContext(); ctx.resume(); setAudioCtx(ctx); setHasStarted(true); if (typeof window !== 'undefined' && window.matchMedia("(min-width: 1024px)").matches) { try { document.body.requestPointerLock(); } catch(e) {} } };
 
         useEffect(() => {
           let timerId;
@@ -1606,7 +1626,7 @@
                   <Player active={hasStarted} moveInput={moveInput} lookInput={lookInput} isDesktop={isDesktop} onEnterElevator={handlePlayerEnterElevator} doorsClosed={doorsClosed} currentLevel={currentLevel} onInteractionUpdate={handleInteractionUpdate} onNpcInteractionUpdate={handleNpcInteractionUpdate} houseDoorOpen={houseDoorOpen} zoomLevel={zoomLevel} npcPositionRef={npcPositionRef} dialogueOpen={dialogueOpen} sharedPositionRef={sharedPlayerPositionRef} />
               </Suspense>
             </Canvas>
-            <Loader />
+            <Loader containerStyles={{ background: '#050505' }} innerStyles={{ background: '#1a1a1a', width: '300px', height: '6px', borderRadius: '3px' }} barStyles={{ background: 'linear-gradient(90deg, #f59e0b, #fbbf24)', height: '100%', borderRadius: '3px' }} dataStyles={{ color: '#f59e0b', fontFamily: 'monospace', fontSize: '14px' }} dataInterpolation={(p) => `Carregando... ${p.toFixed(0)}%`} />
             {!hasStarted && <MainMenu onPlay={handleStartGame} />}
             {hasStarted && ( <div className="absolute top-4 right-4 z-50 flex gap-4"><button onClick={() => setMuted(!muted)} className="text-white bg-black/50 p-2 rounded-full hover:bg-white/20 transition-colors pointer-events-auto">{muted ? (<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8"><path strokeLinecap="round" strokeLinejoin="round" d="M17.25 9.75 19.5 12m0 0 2.25 2.25M19.5 12l2.25-2.25M19.5 12l-2.25 2.25m-10.5-6 4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" /></svg>) : (<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8"><path strokeLinecap="round" strokeLinejoin="round" d="M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" /></svg>)}</button></div> )}
             {hasStarted && !isDesktop && !dialogueOpen && ( <><VisualJoystick active={joystickVisual.active} x={joystickVisual.currentX} y={joystickVisual.currentY} origin={{ x: joystickVisual.originX, y: joystickVisual.originY }} /><div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 w-full text-center px-4 text-white/50 text-sm font-mono pointer-events-none no-select">Left: Drag to Move • Right: Drag to Look</div></> )}
