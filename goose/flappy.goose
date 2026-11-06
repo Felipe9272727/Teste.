@@ -563,8 +563,9 @@ fn hud_disc(cx:f64,cy:f64,rad:f64,r:f64,g:f64,b:f64) {
     while i<20 {
         let a=2.0*PI*(i as f64)/20.0;
         let c=2.0*PI*((i+1) as f64)/20.0;
-        triangle(cx,cy,0.0,cx+cos(a)*rad,cy+sin(a)*rad,0.0,
-                 cx+cos(c)*rad,cy+sin(c)*rad,0.0,r,g,b);
+        let aspect=(height as f64)/(width as f64);
+        triangle(cx,cy,0.0,cx+cos(a)*rad*aspect,cy+sin(a)*rad,0.0,
+                 cx+cos(c)*rad*aspect,cy+sin(c)*rad,0.0,r,g,b);
         i+=1;
     }
 }
@@ -598,17 +599,17 @@ fn draw_digit(d:i32,x:f64,y:f64) {
 fn draw_hud() {
     // HUD geometry also comes from Goose, not Android canvas.
     used=0;
-    let cx=-0.69;
-    let cy=-0.70;
-    hud_disc(cx,cy,0.19,0.13,0.36,0.50);
-    hud_disc(cx+stick_x*0.11,cy+stick_z*0.11,0.077,0.74,0.93,0.97);
-    hud_disc(0.81,-0.34,0.112,0.17,0.72,0.53);
-    hud_disc(0.81,-0.73,0.112,0.21,0.57,0.81);
-    hud_disc(0.50,-0.72,0.118,0.96,0.64,0.21);
+    let cx=-0.70;
+    let cy=-0.54;
+    hud_disc(cx,cy,0.24,0.10,0.26,0.36);
+    hud_disc(cx+stick_x*0.082,cy+stick_z*0.11,0.077,0.74,0.93,0.97);
+    hud_disc(0.78,-0.20,0.112,0.17,0.72,0.53);
+    hud_disc(0.78,-0.68,0.112,0.21,0.57,0.81);
+    hud_disc(0.50,-0.66,0.118,0.96,0.64,0.21);
     // Indicators show when a finger presses the corresponding button.
-    if rising { hud_disc(0.81,-0.34,0.055,0.84,1.0,0.88); }
-    if diving { hud_disc(0.81,-0.73,0.055,0.82,0.92,1.0); }
-    if turbo { hud_disc(0.50,-0.72,0.055,1.0,0.96,0.77); }
+    if rising { hud_disc(0.78,-0.20,0.055,0.84,1.0,0.88); }
+    if diving { hud_disc(0.78,-0.68,0.055,0.82,0.92,1.0); }
+    if turbo { hud_disc(0.50,-0.66,0.055,1.0,0.96,0.77); }
     // A 3D-game HUD score, using pure Goose 7-segment numbers.
     let ones=rings%10;
     let tens=(rings/10)%10;
