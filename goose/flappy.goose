@@ -29,6 +29,8 @@ extern fn glUniformMatrix4fv(location: i32, count: i32, transpose: u8, value: co
 extern fn glUniform3f(location: i32, a: f32, b: f32, c: f32);
 extern fn glDrawArrays(mode: u32, start: i32, count: i32);
 extern fn gs_compile_shader(kind: u32, source: const u8&) -> u32;
+extern fn gs_asset_count(kind: i32) -> i32;
+extern fn gs_asset_value(kind: i32, vertex: i32, component: i32) -> f32;
 
 let ARRAY_BUFFER: u32 = 34962;
 let STATIC_DRAW: u32 = 35044;
@@ -86,6 +88,11 @@ var chunk_count: i32[9] = [0; 9];
 var current_cx: i32 = -99999;
 var current_cz: i32 = -99999;
 var moving_buffer: u32 = 0;
+var hero_buffer: u32 = 0;
+var hero_vertex_count: i32 = 0;
+var uniform_model: i32 = -1;
+var identity_model: f32[16] = [0.0; 16];
+var model_matrix: f32[16] = [0.0; 16];
 var shader_program: u32 = 0;
 var attribute_position: i32 = -1;
 var attribute_normal: i32 = -1;
@@ -101,12 +108,13 @@ var camera_z: f64 = 0.0;
 
 // GLSL shader sources live in Goose; the GPU runs GLSL by design.
 // Deliberately no Java or C geometry, game logic, or world renderer.
-let SHADER_VERT = "attribute vec3 aPos;\nattribute vec3 aNormal;\nattribute vec3 aColor;\nuniform mat4 uVP;\nuniform vec3 uEye;\nvarying vec3 vCol;\nvarying float vFog;\nvoid main(){vec4 q=vec4(aPos,1.0);float light=max(dot(normalize(aNormal),normalize(vec3(-0.42,0.88,0.35))),0.0);vCol=aColor*(0.61+0.39*light);vFog=clamp((length(q.xyz-uEye)-38.0)/65.0,0.0,0.82);gl_Position=uVP*q;}\n\0";
+let SHADER_VERT = "attribute vec3 aPos;\nattribute vec3 aNormal;\nattribute vec3 aColor;\nuniform mat4 uVP;\nuniform mat4 uModel;\nuniform vec3 uEye;\nvarying vec3 vCol;\nvarying float vFog;\nvoid main(){vec4 q=uModel*vec4(aPos,1.0);vec3 N=normalize(mat3(uModel)*aNormal);float light=max(dot(N,normalize(vec3(-0.42,0.88,0.35))),0.0);vCol=aColor*(0.54+0.46*light);vFog=clamp((length(q.xyz-uEye)-38.0)/65.0,0.0,0.82);gl_Position=uVP*q;}\n\0";
 let SHADER_FRAG = "precision mediump float;\nvarying vec3 vCol;\nvarying float vFog;\nvoid main(){gl_FragColor=vec4(mix(vCol,vec3(0.53,0.79,0.90),vFog),1.0);}\n\0";
 let POS_NAME = "aPos\0";
 let NORMAL_NAME = "aNormal\0";
 let COLOR_NAME = "aColor\0";
 let MATRIX_NAME = "uVP\0";
+let MODEL_NAME = "uModel\0";
 let EYE_NAME = "uEye\0";
 
 export fn terrain_height(x: f64, z: f64) -> f64 {
@@ -321,6 +329,67 @@ fn random_unit(x:f64,z:f64)->f64 {
     return sin(x*17.231+z*19.127)*cos(x*7.713-z*5.237);
 }
 
+
+// All model transformations, geometry placement and GPU uploads are performed in Goose.
+fn set_identity() {
+    var i: i32 = 0;
+    while i < 16 { identity_model[i] = 0.0; i += 1; }
+    identity_model[0] = 1.0;
+    identity_model[5] = 1.0;
+    identity_model[10] = 1.0;
+    identity_model[15] = 1.0;
+    glUniformMatrix4fv(uniform_model,1,0,identity_model[0]);
+}
+
+fn set_transform(x: f64, y: f64, z: f64, heading: f64, scale: f64) {
+    var i: i32 = 0;
+    while i < 16 { model_matrix[i] = 0.0; i += 1; }
+    let co = cos(heading)*scale;
+    let si = sin(heading)*scale;
+    model_matrix[0] = co as f32;
+    model_matrix[2] = (-si) as f32;
+    model_matrix[5] = scale as f32;
+    model_matrix[8] = si as f32;
+    model_matrix[10] = co as f32;
+    model_matrix[12] = x as f32;
+    model_matrix[13] = y as f32;
+    model_matrix[14] = z as f32;
+    model_matrix[15] = 1.0;
+    glUniformMatrix4fv(uniform_model,1,0,model_matrix[0]);
+}
+
+// Mesh source: Blender export. Goose transforms colors/normals and writes the world VBO.
+fn append_blender(kind: i32,x: f64,y: f64,z: f64,scale: f64,rotate: f64) {
+    let count = gs_asset_count(kind);
+    let sn=sin(rotate);
+    let cs=cos(rotate);
+    var i: i32 = 0;
+    while i < count {
+        let ax = gs_asset_value(kind,i,0) as f64;
+        let ay = gs_asset_value(kind,i,1) as f64;
+        let az = gs_asset_value(kind,i,2) as f64;
+        let nx = gs_asset_value(kind,i,3) as f64;
+        let ny = gs_asset_value(kind,i,4) as f64;
+        let nz = gs_asset_value(kind,i,5) as f64;
+        emit(x+(ax*cs+az*sn)*scale,
+             y+ay*scale,z+(-ax*sn+az*cs)*scale,
+             nx*cs+nz*sn,ny,-nx*sn+nz*cs,
+             gs_asset_value(kind,i,6),
+             gs_asset_value(kind,i,7),
+             gs_asset_value(kind,i,8));
+        i+=1;
+    }
+}
+
+fn upload_hero() {
+    used=0;
+    append_blender(0,0.0,0.0,0.0,1.0,0.0);
+    hero_vertex_count=used/9;
+    glGenBuffers(1,hero_buffer);
+    glBindBuffer(ARRAY_BUFFER,hero_buffer);
+    glBufferData(ARRAY_BUFFER,(used as i64)*4,scratch[0],STATIC_DRAW);
+}
+
 fn build_chunk(cx:i32,cz:i32,idx:i32) {
     used=0;
     let start_x=(cx as f64)*CHUNK_SIZE;
@@ -349,22 +418,18 @@ fn build_chunk(cx:i32,cz:i32,idx:i32) {
         }
         iz+=1;
     }
+    // Forest and architecture are real Blender meshes, placed and baked by Goose.
+    // Fewer copies per chunk improve frame time on mobile.
     var k:i32=0;
-    while k<17 {
+    while k<8 {
         let fx=(k as f64)*3.139+(cx as f64)*12.23+(cz as f64)*4.31;
         let fz=(k as f64)*7.239+(cz as f64)*17.31+(cx as f64)*9.71;
         let x=start_x+4.0+(sin(fx)*0.5+0.5)*(CHUNK_SIZE-8.0);
         let z=start_z+4.0+(cos(fz)*0.5+0.5)*(CHUNK_SIZE-8.0);
         let y=terrain_height(x,z);
-        if y>0.1 && x*x+z*z>72.0 {
-            let size=1.0+(random_unit(x*0.23,z*0.31)+1.0)*0.65;
-            if k % 5 != 0 {
-                box(x,y+size*0.65,z,size*0.26,size*1.3,size*0.26,0.42,0.30,0.20);
-                cone(x,y+size*0.56,z,size*0.8,size*2.6,7,0.13,0.51,0.29);
-                cone(x,y+size*1.55,z,size*0.61,size*1.85,7,0.15,0.62,0.36);
-            } else {
-                sphere(x,y+size*0.25,z,size*0.52,size*0.55,size*0.52,0.51,0.57,0.53);
-            }
+        if y>0.14 && x*x+z*z>75.0 {
+            let size=0.8+(random_unit(x*0.23,z*0.31)+1.0)*0.45;
+            append_blender(1,x,y,z,size,fx);
         }
         k+=1;
     }
@@ -372,18 +437,12 @@ fn build_chunk(cx:i32,cz:i32,idx:i32) {
         let x=start_x+CHUNK_SIZE*0.52;
         let z=start_z+CHUNK_SIZE*0.48;
         let y=terrain_height(x,z);
-        if y> -0.1 {
-            box(x,y+1.3,z,4.2,2.6,4.0,0.79,0.60,0.39);
-            cone(x,y+2.2,z,3.0,2.0,4,0.78,0.32,0.24);
-            box(x,y+1.0,z-2.05,1.1,1.5,0.12,0.24,0.35,0.41);
-        }
+        if y> -0.1 { append_blender(2,x,y,z,1.0,0.0); }
     }
     if cx==0 && cz==0 {
         let x=10.0;let z=10.0;
         let y=terrain_height(x,z);
-        box(x,y+4.1,z,2.0,8.2,2.0,0.83,0.80,0.65);
-        cone(x,y+8.1,z,2.3,2.8,8,0.85,0.33,0.23);
-        box(x,y+6.5,z,2.6,1.1,2.6,0.25,0.37,0.46);
+        append_blender(2,x,y,z,1.20,0.45);
     }
     glBindBuffer(ARRAY_BUFFER,chunk_buffer[idx]);
     glBufferData(ARRAY_BUFFER,(used as i64)*4,scratch[0],STATIC_DRAW);
@@ -463,21 +522,7 @@ fn look_at(ex:f64,ey:f64,ez:f64,tx:f64,ty:f64,tz:f64) {
 
 fn dynamic_scene() {
     used=0;
-    // A real goose model, built and animated inside Goose.
-    let turn=sin(yaw);
-    let forward=cos(yaw);
-    let bob=sin(seconds*13.0)*0.16;
-    sphere(px,py,pz,1.10,0.71,1.43,0.91,0.96,0.98);
-    sphere(px,py+0.67,pz-forward*0.38,0.44,0.92,0.45,0.98,0.99,1.0);
-    sphere(px,py+1.26,pz-forward*0.56,0.60,0.55,0.62,0.99,0.99,1.0);
-    box(px,py+1.11,pz-forward*0.95,0.38,0.17,0.66,1.0,0.52,0.18);
-    sphere(px-0.24,py+1.41,pz-forward*0.97,0.11,0.12,0.11,0.10,0.15,0.18);
-    sphere(px+0.24,py+1.41,pz-forward*0.97,0.11,0.12,0.11,0.10,0.15,0.18);
-    sphere(px-0.83,py+0.15+bob,pz,0.82,0.22,0.92,0.81,0.89,0.96);
-    sphere(px+0.83,py+0.15-bob,pz,0.82,0.22,0.92,0.81,0.89,0.96);
-    cone(px,py+0.05,pz+0.85,0.43,0.85,7,0.88,0.92,0.96);
-    box(px-0.28,py-0.65,pz+0.08,0.16,0.42,0.20,0.99,0.55,0.21);
-    box(px+0.28,py-0.65,pz+0.08,0.16,0.42,0.20,0.99,0.55,0.21);
+    // Character geometry is no longer created per frame: Blender VBO is persistent.
     // Rings are modeled as 3D golden annuli and float as the player approaches.
     var n:i32=0;
     while n<3 {
@@ -590,6 +635,7 @@ export fn surface_created() {
     attribute_color=glGetAttribLocation(shader_program,COLOR_NAME[0]);
     uniform_matrix=glGetUniformLocation(shader_program,MATRIX_NAME[0]);
     uniform_eye=glGetUniformLocation(shader_program,EYE_NAME[0]);
+    uniform_model=glGetUniformLocation(shader_program,MODEL_NAME[0]);
     glEnableVertexAttribArray(attribute_position as u32);
     glEnableVertexAttribArray(attribute_normal as u32);
     glEnableVertexAttribArray(attribute_color as u32);
@@ -600,6 +646,8 @@ export fn surface_created() {
         i+=1;
     }
     glGenBuffers(1,moving_buffer);
+    upload_hero();
+    set_identity();
     current_cx=-99999;current_cz=-99999;
     perspective();
 }
@@ -624,6 +672,7 @@ export fn render_frame(dt:f64) {
     glUniformMatrix4fv(uniform_matrix,1,0,combined[0]);
     glUniform3f(uniform_eye,camera_x as f32,camera_y as f32,camera_z as f32);
     stream_chunks();
+    set_identity();
     var i:i32=0;
     while i<9 {
         glBindBuffer(ARRAY_BUFFER,chunk_buffer[i]);
@@ -631,6 +680,12 @@ export fn render_frame(dt:f64) {
         glDrawArrays(TRIANGLES,0,chunk_count[i]);
         i+=1;
     }
+    // The sculpted Blender goose uses one static GPU buffer and model matrix.
+    set_transform(px,py+sin(seconds*8.0)*0.025,pz,yaw,0.86);
+    glBindBuffer(ARRAY_BUFFER,hero_buffer);
+    bind_attributes();
+    glDrawArrays(TRIANGLES,0,hero_vertex_count);
+    set_identity();
     dynamic_scene();
     glBindBuffer(ARRAY_BUFFER,moving_buffer);
     glBufferData(ARRAY_BUFFER,(used as i64)*4,scratch[0],DYNAMIC_DRAW);
