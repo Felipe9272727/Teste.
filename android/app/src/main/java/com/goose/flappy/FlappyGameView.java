@@ -40,7 +40,7 @@ public final class FlappyGameView extends GLSurfaceView implements GLSurfaceView
     private native double nativeRingY(int index);
     private native double nativeRingZ(int index);
 
-    public interface StatusListener { void onStatus(int rings, int meters); }
+    public interface StatusListener { void onStatus(int rings, int meters, int targetMeters, String direction); }
     private StatusListener listener;
     private ControlsView controls;
     private boolean gooseReady;
@@ -249,7 +249,28 @@ public final class FlappyGameView extends GLSurfaceView implements GLSurfaceView
             lastHudTime = seconds;
             lastScore = score;
             lastDistance = meters;
-            listener.onStatus(score, meters);
+            float targetDistance=Float.MAX_VALUE, targetX=playerX, targetZ=playerZ;
+            for (int i=0;i<3;i++) {
+                float dx=(float)nativeRingX(i)-playerX;
+                float dz=(float)nativeRingZ(i)-playerZ;
+                float dy=(float)nativeRingY(i)-playerY;
+                float d=(float)Math.sqrt(dx*dx+dy*dy+dz*dz);
+                if (d<targetDistance) {
+                    targetDistance=d;
+                    targetX=playerX+dx;
+                    targetZ=playerZ+dz;
+                }
+            }
+            double direction=Math.atan2(targetX-playerX,-(targetZ-playerZ))-cameraYaw;
+            double degrees=Math.atan2(Math.sin(direction),Math.cos(direction));
+            String hint;
+            if (degrees>2.75 || degrees < -2.75) hint="ATRÁS";
+            else if(degrees>1.9) hint="DIREITA / ATRÁS";
+            else if(degrees>0.52) hint="DIREITA";
+            else if(degrees< -1.9) hint="ESQUERDA / ATRÁS";
+            else if(degrees< -0.52) hint="ESQUERDA";
+            else hint="EM FRENTE";
+            listener.onStatus(score, meters, Math.round(targetDistance), hint);
         }
     }
 
