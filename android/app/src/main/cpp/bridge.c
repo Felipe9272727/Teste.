@@ -56,3 +56,29 @@ Java_com_goose_flappy_FlappyGameView_nativeTouch(JNIEnv *env, jobject self,
     touch_event((int32_t)action, (int32_t)finger, (double)x, (double)y,
                 (int32_t)w, (int32_t)h);
 }
+
+/* Vertex colors and geometry come from actual Blender-evaluated mesh export.
+ * The Goose renderer reads the data once, builds its own VBOs, and draws them.
+ * No rendering or game-specific decisions are written in C.
+ */
+#include "goose_assets.h"
+int32_t gs_asset_count(int32_t kind) {
+    if (kind < 0 || kind >= 3) return 0;
+    return goose_asset_counts[kind];
+}
+float gs_asset_value(int32_t kind, int32_t vertex, int32_t component) {
+    if (kind < 0 || kind >= 3 || component < 0 || component >= 9 ||
+        vertex < 0 || vertex >= goose_asset_counts[kind]) return 0.0f;
+    const float *data = kind == 0 ? goose_asset_0
+                       : kind == 1 ? goose_asset_1 : goose_asset_2;
+    return data[vertex * 9 + component];
+}
+
+JNIEXPORT jint JNICALL
+Java_com_goose_flappy_FlappyGameView_nativeScore(JNIEnv *env, jobject self) {
+    return get_score();
+}
+JNIEXPORT jdouble JNICALL
+Java_com_goose_flappy_FlappyGameView_nativeDistance(JNIEnv *env, jobject self) {
+    return get_distance();
+}
