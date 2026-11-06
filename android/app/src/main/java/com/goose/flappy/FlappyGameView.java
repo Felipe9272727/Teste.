@@ -186,12 +186,10 @@ public final class FlappyGameView extends GLSurfaceView implements GLSurfaceView
         Matrix.scaleM(model, 0, sx,sy,sz);
         GLES20.glUniformMatrix4fv(uModel, 1, false, model, 0);
         GLES20.glUniform3f(uTint, r,g,b);
-        mesh.buffer.position(0);
-        GLES20.glVertexAttribPointer(aPos, 3, GLES20.GL_FLOAT, false, 36, mesh.buffer);
-        mesh.buffer.position(3);
-        GLES20.glVertexAttribPointer(aNormal, 3, GLES20.GL_FLOAT, false, 36, mesh.buffer);
-        mesh.buffer.position(6);
-        GLES20.glVertexAttribPointer(aColor, 3, GLES20.GL_FLOAT, false, 36, mesh.buffer);
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, mesh.vbo);
+        GLES20.glVertexAttribPointer(aPos, 3, GLES20.GL_FLOAT, false, 36, 0);
+        GLES20.glVertexAttribPointer(aNormal, 3, GLES20.GL_FLOAT, false, 36, 12);
+        GLES20.glVertexAttribPointer(aColor, 3, GLES20.GL_FLOAT, false, 36, 24);
         GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, mesh.count);
     }
 
@@ -301,6 +299,14 @@ public final class FlappyGameView extends GLSurfaceView implements GLSurfaceView
             nextMeshes[newIndex++] = found;
         }
         if (!unchanged) {
+            // Reclaim GPU memory of chunks that have left the 3x3 streaming window.
+            for (int i=0;i<9;i++) {
+                Mesh old=chunkMeshes[i];
+                if(old==null) continue;
+                boolean reused=false;
+                for (int j=0;j<9;j++) if (nextMeshes[j]==old) { reused=true;break; }
+                if(!reused) old.release();
+            }
             System.arraycopy(nextMeshes,0,chunkMeshes,0,9);
             System.arraycopy(nextXs,0,chunkX,0,9);
             System.arraycopy(nextZs,0,chunkZ,0,9);
@@ -428,13 +434,25 @@ public final class FlappyGameView extends GLSurfaceView implements GLSurfaceView
     }
 
     private static final class Mesh {
-        final FloatBuffer buffer;
+        final int vbo;
         final int count;
         Mesh(float[] data,int length) {
-            buffer=ByteBuffer.allocateDirect(length*4).order(ByteOrder.nativeOrder()).asFloatBuffer();
-            buffer.put(data,0,length);
-            buffer.position(0);
-            count=length/9;
+            count = length / 9;
+            FloatBuffer staging = ByteBuffer.allocateDirect(length * 4)
+                    .order(ByteOrder.nativeOrder()).asFloatBuffer();
+            staging.put(data,0,length);
+            staging.position(0);
+            int[] buffers = new int[1];
+            GLES20.glGenBuffers(1, buffers, 0);
+            vbo = buffers[0];
+            if (vbo == 0) throw new IllegalStateException("Failed to allocate OpenGL vertex buffer");
+            GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER,vbo);
+            GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER,length*4,staging,GLES20.GL_STATIC_DRAW);
+            GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER,0);
+        }
+        void release() {
+            int[] buffers = {vbo};
+            GLES20.glDeleteBuffers(1,buffers,0);
         }
     }
 
