@@ -1,0 +1,61 @@
+name: Compilar Flappy Goose APK (Goose de verdade)
+on:
+  push:
+    branches: [main, master, "goose-flappy-android"]
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Android SDK e NDK
+        run: |
+          yes | sdkmanager --licenses || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018"
+
+      - name: Compilar o compilador Goose v2026.3
+        run: |
+          git clone --depth 1 --branch v2026.3 https://github.com/aardappel/goose.git "$RUNNER_TEMP/goose"
+          cmake -S "$RUNNER_TEMP/goose" -B "$RUNNER_TEMP/goose-build" \
+            -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build "$RUNNER_TEMP/goose-build" -j 3
+
+      - name: Gerar C do codigo Goose (export fn)
+        run: |
+          GOOSE="$RUNNER_TEMP/goose-build/goose"
+          "$GOOSE" check goose/flappy.goose
+          mkdir -p android/app/src/main/cpp/generated
+          "$GOOSE" --standalone --header android/app/src/main/cpp/generated/flappy.h \
+            -o android/app/src/main/cpp/generated/flappy.c goose/flappy.goose
+
+      - name: Compilar biblioteca ARM64 Android usando NDK
+        run: |
+          CLANG="$ANDROID_HOME/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang"
+          mkdir -p android/app/src/main/jniLibs/arm64-v8a
+          "$CLANG" -O2 -fPIC -shared \
+            -Iandroid/app/src/main/cpp/generated \
+            android/app/src/main/cpp/generated/flappy.c \
+            android/app/src/main/cpp/bridge.c \
+            -o android/app/src/main/jniLibs/arm64-v8a/libflappygoose.so \
+            -lm -ldl -pthread
+
+      - name: Montar APK de debug
+        working-directory: android
+        run: gradle assembleDebug --no-daemon --stacktrace
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FlappyGoose-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk
