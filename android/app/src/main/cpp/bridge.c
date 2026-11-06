@@ -2,50 +2,54 @@
 #include <stdint.h>
 #include "flappy.h"
 
-// Todas estas chamadas acontecem na mesma thread de renderizacao.
-JNIEXPORT void JNICALL
-Java_com_goose_flappy_FlappyGameView_nativeInit(JNIEnv *env, jobject self) {
-    char *argv[] = { "flappy_goose", NULL };
+// JNI only transports controller state and Goose world positions.
+// All flight physics, terrain ground height, ring detection and score live in Goose.
+JNIEXPORT void JNICALL Java_com_goose_flappy_FlappyGameView_nativeInit(JNIEnv *env, jobject self) {
+    char *argv[] = { "goose_skies", NULL };
     goose_init(1, argv);
-    reset_game(17012026);
+    reset_world(17012026);
 }
-JNIEXPORT void JNICALL
-Java_com_goose_flappy_FlappyGameView_nativeShutdown(JNIEnv *env, jobject self) {
-    // Goose v2026.3 nao tem goose_exit; runtime vive ate o fim do processo.
+JNIEXPORT void JNICALL Java_com_goose_flappy_FlappyGameView_nativeStep(
+    JNIEnv *env, jobject self, jdouble dt, jdouble dx, jdouble dz, jdouble dy, jint turbo) {
+    step_world((double)dt, (double)dx, (double)dz, (double)dy, (int32_t)turbo);
 }
-JNIEXPORT void JNICALL
-Java_com_goose_flappy_FlappyGameView_nativeFlap(JNIEnv *env, jobject self) {
-    flap();
+JNIEXPORT jdouble JNICALL Java_com_goose_flappy_FlappyGameView_nativeX(JNIEnv *env, jobject self) {
+    return player_x();
 }
-JNIEXPORT void JNICALL
-Java_com_goose_flappy_FlappyGameView_nativeStep(JNIEnv *env, jobject self, jdouble dt) {
-    step_game((double)dt);
+JNIEXPORT jdouble JNICALL Java_com_goose_flappy_FlappyGameView_nativeY(JNIEnv *env, jobject self) {
+    return player_y();
 }
-JNIEXPORT jint JNICALL
-Java_com_goose_flappy_FlappyGameView_nativeMode(JNIEnv *env, jobject self) {
-    return (jint)get_mode();
+JNIEXPORT jdouble JNICALL Java_com_goose_flappy_FlappyGameView_nativeZ(JNIEnv *env, jobject self) {
+    return player_z();
 }
-JNIEXPORT jint JNICALL
-Java_com_goose_flappy_FlappyGameView_nativeScore(JNIEnv *env, jobject self) {
-    return (jint)get_score();
+JNIEXPORT jdouble JNICALL Java_com_goose_flappy_FlappyGameView_nativeVX(JNIEnv *env, jobject self) {
+    return player_vx();
 }
-JNIEXPORT jint JNICALL
-Java_com_goose_flappy_FlappyGameView_nativeBest(JNIEnv *env, jobject self) {
-    return (jint)get_best();
+JNIEXPORT jdouble JNICALL Java_com_goose_flappy_FlappyGameView_nativeVY(JNIEnv *env, jobject self) {
+    return player_vy();
 }
-JNIEXPORT jdouble JNICALL
-Java_com_goose_flappy_FlappyGameView_nativeBirdY(JNIEnv *env, jobject self) {
-    return (jdouble)get_bird_y();
+JNIEXPORT jdouble JNICALL Java_com_goose_flappy_FlappyGameView_nativeVZ(JNIEnv *env, jobject self) {
+    return player_vz();
 }
-JNIEXPORT jdouble JNICALL
-Java_com_goose_flappy_FlappyGameView_nativeBirdVelocity(JNIEnv *env, jobject self) {
-    return (jdouble)get_bird_velocity();
+JNIEXPORT jint JNICALL Java_com_goose_flappy_FlappyGameView_nativeScore(JNIEnv *env, jobject self) {
+    return (jint)score();
 }
-JNIEXPORT jdouble JNICALL
-Java_com_goose_flappy_FlappyGameView_nativePipeX(JNIEnv *env, jobject self, jint index) {
-    return (jdouble)get_pipe_x((int32_t)index);
+JNIEXPORT jdouble JNICALL Java_com_goose_flappy_FlappyGameView_nativeDistance(JNIEnv *env, jobject self) {
+    return distance();
 }
-JNIEXPORT jdouble JNICALL
-Java_com_goose_flappy_FlappyGameView_nativePipeGap(JNIEnv *env, jobject self, jint index) {
-    return (jdouble)get_pipe_gap((int32_t)index);
+JNIEXPORT jdouble JNICALL Java_com_goose_flappy_FlappyGameView_nativeTerrain(
+    JNIEnv *env, jobject self, jdouble x, jdouble z) {
+    return terrain_height((double)x, (double)z);
+}
+JNIEXPORT jdouble JNICALL Java_com_goose_flappy_FlappyGameView_nativeRingX(
+    JNIEnv *env, jobject self, jint index) {
+    return ring_x((int32_t)index);
+}
+JNIEXPORT jdouble JNICALL Java_com_goose_flappy_FlappyGameView_nativeRingY(
+    JNIEnv *env, jobject self, jint index) {
+    return ring_y((int32_t)index);
+}
+JNIEXPORT jdouble JNICALL Java_com_goose_flappy_FlappyGameView_nativeRingZ(
+    JNIEnv *env, jobject self, jint index) {
+    return ring_z((int32_t)index);
 }
