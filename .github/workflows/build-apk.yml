@@ -1,7 +1,7 @@
 name: Compilar Flappy Goose APK (Goose de verdade)
 on:
   push:
-    branches: [main, master, "goose-flappy-android"]
+    branches: [main, master, "goose-flappy-android", "goose-openworld-20261106"]
   workflow_dispatch:
 
 jobs:
@@ -58,5 +58,5 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: FlappyGoose-3D-APK
+          name: GooseSkies-MundoAberto-APK
           path: android/app/build/outputs/apk/debug/app-debug.apk
