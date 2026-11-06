@@ -259,7 +259,7 @@ fn triangle(ax:f64,ay:f64,az:f64,bx:f64,by:f64,bz:f64,cx:f64,cy:f64,cz:f64,r:f64
     emit(cx,cy,cz,nx,ny,nz,r,g,b);
 }
 
-fn quad(ax:f64,ay:f64,az,bx:f64,by:f64,bz,cx:f64,cy:f64,cz,dx:f64,dy:f64,dz,r:f64,g:f64,b:f64) {
+fn quad(ax:f64,ay:f64,az:f64,bx:f64,by:f64,bz:f64,cx:f64,cy:f64,cz:f64,dx:f64,dy:f64,dz:f64,r:f64,g:f64,b:f64) {
     triangle(ax,ay,az,bx,by,bz,cx,cy,cz,r,g,b);
     triangle(ax,ay,az,cx,cy,cz,dx,dy,dz,r,g,b);
 }
