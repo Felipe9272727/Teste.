@@ -121,19 +121,19 @@ public final class MainActivity extends Activity {
         TextView help=text("JOYSTICK: VOAR     •     ARRASTE À DIREITA: CÂMERA",11,Color.WHITE,true);
         help.setGravity(Gravity.CENTER);
         help.setBackground(rounded(0xA3173B49,0xB2173B49,0x5075C8C5,12));
-        root.addView(help,at(360,29,Gravity.TOP|Gravity.CENTER_HORIZONTAL,0,20,0,0));
+        root.addView(help,at(304,29,Gravity.BOTTOM|Gravity.CENTER_HORIZONTAL,0,0,0,11));
 
         // FPS badge: measured FPS, not a guessed benchmark.
         fpsNumber=text("-- FPS",11,0xFFC7F5E4,true);
         fpsNumber.setGravity(Gravity.CENTER);
         fpsNumber.setBackground(rounded(0xCB163943,0xD1194545,0x547CC4BF,11));
-        root.addView(fpsNumber,at(70,25,Gravity.BOTTOM|Gravity.RIGHT,0,0,16,14));
+        root.addView(fpsNumber,at(70,25,Gravity.TOP|Gravity.CENTER_HORIZONTAL,0,70,0,0));
 
         // Gooseland world controls are rendered by Goose with correctly aligned circles.
         // These text labels are non-interactive and do not steal multitouch from GLSurfaceView.
         TextView move=text("MOVER",11,0xFFE9FAFF,true);
         move.setGravity(Gravity.CENTER);
-        root.addView(move,at(78,20,Gravity.BOTTOM|Gravity.LEFT,31,0,0,10));
+        root.addView(move,at(78,20,Gravity.BOTTOM|Gravity.LEFT,70,0,0,7));
 
         TextView turbo=text("TURBO",12,0xFFFFE5A1,true);
         turbo.setGravity(Gravity.CENTER);
