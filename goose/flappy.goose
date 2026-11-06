@@ -37,6 +37,9 @@ let FLOAT: u32 = 5126;
 let TRIANGLES: u32 = 4;
 let DEPTH_TEST: u32 = 2929;
 let COLOR_DEPTH: u32 = 16640;
+fn abs(x: f64) -> f64 { if x < 0.0 { -x } else { x } }
+fn abs(x: i32) -> i32 { if x < 0 { -x } else { x } }
+
 let CHUNK_SIZE = 36.0;
 let GRID_SIZE = 12;
 let TILE_SIZE = 3.0;
