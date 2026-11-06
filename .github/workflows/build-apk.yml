@@ -29,6 +29,14 @@ jobs:
           echo "GOOSE_BIN=$GOOSE_BIN" >> "$GITHUB_ENV"
           "$GOOSE_BIN" version
 
+      - name: Modelagem 3D real usando Blender
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends blender
+          blender -b --factory-startup --python assets/blender/make_assets.py
+          test -s assets/generated/goose_assets.h
+          test -s assets/generated/GooseSkies_Character_Assets.blend
+
       - name: Gerar C do codigo Goose (export fn)
         run: |
           "$GOOSE_BIN" check goose/flappy.goose
@@ -46,7 +54,7 @@ jobs:
           CLANG="$ANDROID_HOME/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang"
           mkdir -p android/app/src/main/jniLibs/arm64-v8a
           "$CLANG" -O2 -fPIC -shared \
-            -Iandroid/app/src/main/cpp/generated \
+            -Iandroid/app/src/main/cpp/generated -Iassets/generated \
             android/app/src/main/cpp/generated/flappy.c \
             android/app/src/main/cpp/bridge.c \
             -o android/app/src/main/jniLibs/arm64-v8a/libflappygoose.so \
@@ -58,5 +66,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: GooseSkies-GooseNative-APK
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: GooseSkies-Blender-V5-APK
+          path: |
+            android/app/build/outputs/apk/debug/app-debug.apk
+            assets/generated/GooseSkies_Character_Assets.blend
