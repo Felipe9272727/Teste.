@@ -11,7 +11,7 @@ Java_com_goose_flappy_FlappyGameView_nativeInit(JNIEnv *env, jobject self) {
 }
 JNIEXPORT void JNICALL
 Java_com_goose_flappy_FlappyGameView_nativeShutdown(JNIEnv *env, jobject self) {
-    goose_exit();
+    // Goose v2026.3 nao tem goose_exit; runtime vive ate o fim do processo.
 }
 JNIEXPORT void JNICALL
 Java_com_goose_flappy_FlappyGameView_nativeFlap(JNIEnv *env, jobject self) {

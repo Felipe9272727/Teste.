@@ -24,19 +24,21 @@ jobs:
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses || true
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018"
 
-      - name: Compilar o compilador Goose v2026.3
+      - name: Baixar compilador Goose v2026.3 (binario oficial)
         run: |
-          git clone --depth 1 --branch v2026.3 https://github.com/aardappel/goose.git "$RUNNER_TEMP/goose"
-          cmake -S "$RUNNER_TEMP/goose" -B "$RUNNER_TEMP/goose-build" \
-            -G Ninja -DCMAKE_BUILD_TYPE=Release
-          cmake --build "$RUNNER_TEMP/goose-build" -j 3
+          mkdir -p "$RUNNER_TEMP/goose"
+          curl -fsSL --retry 3 https://github.com/aardappel/goose/releases/download/v2026.3/goose-v2026.3-linux-x64.tar.gz | tar -xz -C "$RUNNER_TEMP/goose"
+          GOOSE_BIN="$(find "$RUNNER_TEMP/goose" -type f -name goose -print -quit)"
+          test -n "$GOOSE_BIN"
+          chmod +x "$GOOSE_BIN"
+          echo "GOOSE_BIN=$GOOSE_BIN" >> "$GITHUB_ENV"
+          "$GOOSE_BIN" version
 
       - name: Gerar C do codigo Goose (export fn)
         run: |
-          GOOSE="$RUNNER_TEMP/goose-build/goose"
-          "$GOOSE" check goose/flappy.goose
+          "$GOOSE_BIN" check goose/flappy.goose
           mkdir -p android/app/src/main/cpp/generated
-          "$GOOSE" --standalone --header android/app/src/main/cpp/generated/flappy.h \
+          "$GOOSE_BIN" --standalone --header android/app/src/main/cpp/generated/flappy.h \
             -o android/app/src/main/cpp/generated/flappy.c goose/flappy.goose
 
       - name: Compilar biblioteca ARM64 Android usando NDK
