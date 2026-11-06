@@ -37,7 +37,6 @@ let FLOAT: u32 = 5126;
 let TRIANGLES: u32 = 4;
 let DEPTH_TEST: u32 = 2929;
 let COLOR_DEPTH: u32 = 16640;
-let PI = 3.141592653589793;
 let CHUNK_SIZE = 36.0;
 let GRID_SIZE = 12;
 let TILE_SIZE = 3.0;
@@ -366,7 +365,7 @@ fn build_chunk(cx:i32,cz:i32,idx:i32) {
         }
         k+=1;
     }
-    if (abs((cx*13+cz*7) % 11)==3 && !(cx==0 && cz==0) {
+    if abs((cx*13+cz*7) % 11)==3 && !(cx==0 && cz==0) {
         let x=start_x+CHUNK_SIZE*0.52;
         let z=start_z+CHUNK_SIZE*0.48;
         let y=terrain_height(x,z);
