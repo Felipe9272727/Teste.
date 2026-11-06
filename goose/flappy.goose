@@ -610,14 +610,8 @@ fn draw_hud() {
     if rising { hud_disc(0.78,-0.20,0.055,0.84,1.0,0.88); }
     if diving { hud_disc(0.78,-0.68,0.055,0.82,0.92,1.0); }
     if turbo { hud_disc(0.50,-0.66,0.055,1.0,0.96,0.77); }
-    // A 3D-game HUD score, using pure Goose 7-segment numbers.
-    let ones=rings%10;
-    let tens=(rings/10)%10;
-    let hundreds=(rings/100)%10;
-    draw_digit(hundreds,0.63,0.75);
-    draw_digit(tens,0.72,0.75);
-    draw_digit(ones,0.81,0.75);
-    hud_disc(0.49,0.82,0.036,1.0,0.81,0.23);
+    // Crisp score typography is supplied by the Android platform overlay.
+
 }
 
 export fn surface_created() {
