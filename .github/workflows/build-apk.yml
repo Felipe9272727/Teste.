@@ -58,5 +58,5 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: FlappyGoose-APK
+          name: FlappyGoose-3D-APK
           path: android/app/build/outputs/apk/debug/app-debug.apk
