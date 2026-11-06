@@ -14,7 +14,7 @@ import android.widget.TextView;
 /** Landscape mobile shell. All game state is still calculated by the native Goose library. */
 public final class MainActivity extends Activity {
     private FlappyGameView world;
-    private TextView scoreText, distanceText;
+    private TextView scoreText, distanceText, objectiveText;
 
     private int dp(float n) {
         return (int)(n * getResources().getDisplayMetrics().density + .5f);
@@ -87,16 +87,18 @@ public final class MainActivity extends Activity {
         sparams.topMargin = dp(15);
         root.addView(stats, sparams);
 
-        TextView help = text("JOYSTICK: MOVER   •   ARRASTE O LADO DIREITO: CÂMERA", 11, true, 0xE6FFFFFF);
+        objectiveText = text("ANEL PRÓXIMO • PROCURE PELO MUNDO", 11, true, 0xE6FFFFFF);
+        TextView help = objectiveText;
         help.setGravity(Gravity.CENTER);
         help.setBackground(panel());
         FrameLayout.LayoutParams hparams =
             new FrameLayout.LayoutParams(dp(400), dp(32), Gravity.TOP | Gravity.CENTER_HORIZONTAL);
         hparams.topMargin = dp(88);
         root.addView(help, hparams);
-        world.setStatusListener((collected, meters) -> runOnUiThread(() -> {
+        world.setStatusListener((collected, meters, targetMeters, direction) -> runOnUiThread(() -> {
             scoreText.setText("ANÉIS  " + collected);
             distanceText.setText("DISTÂNCIA  " + meters + " m");
+            objectiveText.setText("ANEL A " + targetMeters + " m • " + direction);
         }));
         setContentView(root);
     }
