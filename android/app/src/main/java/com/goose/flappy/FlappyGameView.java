@@ -18,9 +18,16 @@ public final class FlappyGameView extends GLSurfaceView implements GLSurfaceView
     private native void nativeCreated();
     private native void nativeResized(int width, int height);
     private native void nativeFrame(double seconds);
+    private native int nativeScore();
+    private native double nativeDistance();
     private native void nativeTouch(int action, int finger, double x, double y, int width, int height);
 
+    public interface StatusListener { void onStatus(int score, int meters, int fps); }
+    private StatusListener listener;
     private long previousNanos;
+    private long lastHudNanos;
+    private int frames;
+    public void setStatusListener(StatusListener listener) { this.listener = listener; }
 
     public FlappyGameView(Context context) {
         super(context);
@@ -44,6 +51,17 @@ public final class FlappyGameView extends GLSurfaceView implements GLSurfaceView
         double dt = Math.max(0.0, Math.min(0.034, (now - previousNanos) / 1e9));
         previousNanos = now;
         nativeFrame(dt);
+        frames++;
+        if (listener != null && now - lastHudNanos >= 500_000_000L) {
+            int count = frames;
+            final int fps = lastHudNanos == 0L ? 0
+                    : (int)Math.round(count * 1e9 / (now - lastHudNanos));
+            frames = 0;
+            lastHudNanos = now;
+            final int score = nativeScore();
+            final int meters = (int)nativeDistance();
+            post(() -> listener.onStatus(score, meters, fps));
+        }
     }
     @Override public boolean onTouchEvent(MotionEvent event) {
         final int action = event.getActionMasked();
