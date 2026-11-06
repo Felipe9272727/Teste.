@@ -59,6 +59,7 @@ public final class FlappyGameView extends GLSurfaceView implements GLSurfaceView
     private float playerX, playerY, playerZ, cameraYaw;
     private float pxVel, pyVel, pzVel;
     private int screenW = 1, screenH = 1;
+    private int builtCenterX = Integer.MIN_VALUE, builtCenterZ = Integer.MIN_VALUE;
 
     public FlappyGameView(Context ctx) {
         super(ctx);
@@ -154,6 +155,7 @@ public final class FlappyGameView extends GLSurfaceView implements GLSurfaceView
         b.quad(-.5f,0,-.5f, -.5f,0,.5f, .5f,0,.5f, .5f,0,-.5f, 1,1,1);
         seaPlane = b.mesh();
         Arrays.fill(chunkMeshes, null);
+        builtCenterX = builtCenterZ = Integer.MIN_VALUE;
         Arrays.fill(chunkX, Integer.MIN_VALUE);
         Arrays.fill(chunkZ, Integer.MIN_VALUE);
         if (!gooseReady) { nativeInit(); gooseReady = true; }
@@ -252,6 +254,9 @@ public final class FlappyGameView extends GLSurfaceView implements GLSurfaceView
     }
 
     private void ensureChunks(int centerX, int centerZ) {
+        if (centerX == builtCenterX && centerZ == builtCenterZ) return;
+        builtCenterX = centerX;
+        builtCenterZ = centerZ;
         int newIndex = 0;
         Mesh[] nextMeshes = new Mesh[9];
         int[] nextXs = new int[9];
