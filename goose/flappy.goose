@@ -79,7 +79,7 @@ var height: i32 = 540;
 
 // One scratch region for static chunk meshing and small dynamic meshes.
 // 9 interleaved floats: xyz, normal xyz, rgb.
-var scratch: f32[120000] = [0.0; 120000];
+var scratch: f32[600000] = [0.0; 600000];
 var used: i32 = 0;
 var chunk_buffer: u32[9] = [0; 9];
 var chunk_cx: i32[9] = [-99999; 9];
@@ -244,7 +244,7 @@ export fn touch_event(action: i32, finger: i32, x: f64, y: f64, w: i32, h: i32) 
 }
 
 fn emit(x:f64,y:f64,z:f64,nx:f64,ny:f64,nz:f64,r:f64,g:f64,b:f64) {
-    if used + 9 > 120000 { return; }
+    if used + 9 > 600000 { return; }
     scratch[used]=x as f32; used+=1;
     scratch[used]=y as f32; used+=1;
     scratch[used]=z as f32; used+=1;
