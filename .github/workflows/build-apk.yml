@@ -1,7 +1,7 @@
 name: Compilar Flappy Goose APK (Goose de verdade)
 on:
   push:
-    branches: [main, master, "goose-flappy-android", "goose-openworld-20261106", "goose-native-renderer-20261106"]
+    branches: [main, master, "goose-flappy-android", "goose-openworld-20261106", "goose-native-renderer-20261106", "goose-skies-blender-v5-20261106"]
   workflow_dispatch:
 
 jobs:
